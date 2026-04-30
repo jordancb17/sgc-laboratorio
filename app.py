@@ -18,7 +18,7 @@ st.set_page_config(
 
 from database.database import init_db, get_session
 from database import crud
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 from modules import backup as bk
 
 init_db()
@@ -50,13 +50,12 @@ def _kpi_card(icon, value, label, sub, color_class):
 def _dashboard(db):
     hoy = date.today()
 
-    # ── Header elegante ────────────────────────────────────────────────────
-    st.markdown(f"""
-    <div class="section-header">
-        <h2>🔬 Dashboard — Control de Calidad</h2>
-        <p>Sistema de Gestión de Calidad · {hoy.strftime('%A %d de %B de %Y').capitalize()}</p>
-    </div>
-    """, unsafe_allow_html=True)
+    page_header(
+        icon="🔬",
+        title="Dashboard — Control de Calidad",
+        subtitle=f"Resumen operativo del día · {hoy.strftime('%A %d de %B de %Y').capitalize()}",
+        badge="SGC Laboratorio Clínico",
+    )
 
     # ── Filtro por área ────────────────────────────────────────────────────
     areas = crud.listar_areas(db)
@@ -173,7 +172,7 @@ def _dashboard(db):
                 height=300,
                 margin=dict(l=0, r=0, t=10, b=0),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=12)),
-                plot_bgcolor="white", paper_bgcolor="white",
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(gridcolor="#f1f5f9", tickfont=dict(size=12)),
                 yaxis=dict(gridcolor="#f1f5f9", title="N° controles", tickfont=dict(size=11)),
                 hoverlabel=dict(bgcolor="white", font_size=13, bordercolor="#e2e8f0"),

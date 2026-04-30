@@ -16,7 +16,7 @@ from database import crud
 from database.models import NivelLote, TURNOS
 from modules.westgard import evaluar_westgard, emoji_resultado, color_resultado, RESULTADO_RECHAZO, RESULTADO_ADVERTENCIA
 from modules.email_alerts import alerta_rechazo
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 
 st.set_page_config(page_title="Controles Diarios", page_icon="📋", layout="wide")
 init_db()
@@ -24,7 +24,12 @@ setup_page()
 
 
 def main():
-    st.title("📋 Controles Diarios de Calidad")
+    page_header(
+        icon="📋",
+        title="Controles Diarios de Calidad",
+        subtitle="Registro, evaluación Westgard en tiempo real e historial de controles internos",
+        badge="Control Interno",
+    )
     tab_reg, tab_consulta, tab_retro = st.tabs([
         "📝 Registrar Control", "🔍 Consultar / Historial", "🕐 Regularización (Retroactivo)"
     ])

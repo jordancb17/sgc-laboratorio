@@ -1,6 +1,5 @@
 """
-Utilidades comunes para todas las páginas.
-Llamar setup_page() al inicio de cada página, después de st.set_page_config().
+Utilidades comunes: setup, page header, y helpers de rendimiento.
 """
 
 import sys
@@ -13,34 +12,55 @@ from modules.auth import require_auth, render_sidebar_user
 
 
 def setup_page():
-    """Inyecta CSS + verifica autenticación + renderiza sidebar."""
     inject_css()
     require_auth()
     _render_sidebar_brand()
     render_sidebar_user()
 
 
+def page_header(icon: str, title: str, subtitle: str = "", badge: str = ""):
+    badge_html = ""
+    if badge:
+        badge_html = f'<span class="ph-badge">{badge}</span>'
+    st.markdown(f"""
+    <div class="page-header">
+        <div class="ph-icon">{icon}</div>
+        <div class="ph-text">
+            <div class="ph-title">{title}</div>
+            <div class="ph-sub">{subtitle}</div>
+            {badge_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def section_divider(label: str = ""):
+    if label:
+        st.markdown(f'<div class="divider-label">{label}</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+
 def _render_sidebar_brand():
     with st.sidebar:
         st.markdown("""
-        <div style="padding: 20px 16px 12px;">
-            <div style="display:flex; align-items:center; gap:12px;">
+        <div style="padding:22px 16px 14px;">
+            <div style="display:flex; align-items:center; gap:13px;">
                 <div style="
-                    background: rgba(255,255,255,0.15);
-                    border-radius: 10px;
-                    width: 44px; height: 44px; flex-shrink: 0;
-                    display: flex; align-items: center; justify-content: center;
-                    font-size: 24px;
+                    background:linear-gradient(145deg,#0ea5e9,#4f46e5);
+                    border-radius:12px; width:46px; height:46px; flex-shrink:0;
+                    display:flex; align-items:center; justify-content:center;
+                    font-size:26px; box-shadow:0 4px 14px rgba(14,165,233,0.35);
                 ">🔬</div>
                 <div>
-                    <div style="color:white; font-weight:700; font-size:1rem; line-height:1.2;">
-                        SGC Lab
+                    <div style="color:white; font-weight:800; font-size:1.0rem; line-height:1.2; letter-spacing:-0.01em;">
+                        SGC Laboratorio
                     </div>
-                    <div style="color:#93c5fd; font-size:0.72rem; line-height:1.4;">
-                        Control de Calidad
+                    <div style="color:#93c5fd; font-size:0.7rem; font-weight:500; letter-spacing:0.04em; margin-top:2px;">
+                        SISTEMA DE GESTIÓN DE CALIDAD
                     </div>
                 </div>
             </div>
         </div>
-        <hr style="border-color:rgba(255,255,255,0.12); margin:0 16px 6px;">
+        <div style="height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.10),transparent); margin:0 10px 8px;"></div>
         """, unsafe_allow_html=True)

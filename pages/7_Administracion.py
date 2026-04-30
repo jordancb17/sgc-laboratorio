@@ -14,7 +14,7 @@ import pandas as pd
 from datetime import date
 
 from database.database import init_db
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 from modules import backup as bk
 from modules.email_alerts import probar_conexion
 
@@ -24,7 +24,12 @@ setup_page()
 
 
 def main():
-    st.title("🛡️ Administración del Sistema")
+    page_header(
+        icon="🛡️",
+        title="Administración del Sistema",
+        subtitle="Respaldos, alertas por email, usuarios y configuración general del sistema",
+        badge="Acceso Restringido",
+    )
 
     tab_backup, tab_email, tab_usuarios = st.tabs([
         "💾 Respaldos y Almacenamiento", "📧 Alertas por Email", "🔑 Usuarios y Contraseñas"

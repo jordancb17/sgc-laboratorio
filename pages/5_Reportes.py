@@ -22,12 +22,17 @@ from modules.westgard import RESULTADO_OK, RESULTADO_ADVERTENCIA, RESULTADO_RECH
 
 st.set_page_config(page_title="Reportes", page_icon="📊", layout="wide")
 init_db()
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 setup_page()
 
 
 def main():
-    st.title("📊 Reportes de Calidad")
+    page_header(
+        icon="📊",
+        title="Reportes de Calidad",
+        subtitle="Levey-Jennings anotado, reporte mensual comparativo y actividad de personal",
+        badge="Reportes y Tendencias",
+    )
     tab_lj, tab_mensual, tab_personal = st.tabs(
         ["📈 Levey-Jennings", "📅 Reporte Mensual", "👤 Actividad de Personal"]
     )
@@ -173,8 +178,8 @@ def _tab_levey_jennings(db):
         height=520,
         legend=dict(orientation="h", yanchor="bottom", y=1.02),
         hovermode="closest",
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(gridcolor="#f1f5f9", tickangle=45),
         yaxis=dict(gridcolor="#f1f5f9"),
     )
@@ -305,7 +310,7 @@ def _tab_mensual(db):
             title="Controles por semana del mes",
             title_font=dict(size=13),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
-            plot_bgcolor="white", paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             yaxis=dict(gridcolor="#f1f5f9", title="N° controles"),
         )
         fig_sem.update_traces(marker_line_width=0)

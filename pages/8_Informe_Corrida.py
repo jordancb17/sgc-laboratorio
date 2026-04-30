@@ -17,7 +17,7 @@ from collections import defaultdict
 from database.database import init_db, get_session
 from database import crud
 from database.models import TURNOS
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 
 st.set_page_config(page_title="Informe de Corrida", page_icon="📄", layout="wide")
 init_db()
@@ -25,10 +25,11 @@ setup_page()
 
 
 def main():
-    st.title("📄 Informe de Corrida de Controles")
-    st.markdown(
-        "Reporte oficial por turno — requerido para acreditación **ISO 15189 / CAP / CLIA**. "
-        "Documenta la aceptación o rechazo de cada corrida analítica."
+    page_header(
+        icon="📄",
+        title="Informe de Corrida de Controles",
+        subtitle="Decisión formal de aceptación/rechazo por turno · Requerido por ISO 15189 / CAP / CLIA",
+        badge="Documentación Acreditación",
     )
 
     db = get_session()
@@ -347,7 +348,7 @@ def _tab_sigma(db):
         fig.update_layout(
             height=420,
             margin=dict(l=0, r=120, t=20, b=0),
-            plot_bgcolor="white", paper_bgcolor="white",
+            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             yaxis=dict(title="Índice σ", gridcolor="#f1f5f9", range=[0, max(sigmas)*1.3 if sigmas else 10]),
             xaxis=dict(gridcolor="#f1f5f9", tickangle=30),
             showlegend=False,

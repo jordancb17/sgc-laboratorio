@@ -23,15 +23,16 @@ from modules.ep15 import calcular_ep15
 
 st.set_page_config(page_title="EP15-A3", page_icon="📐", layout="wide")
 init_db()
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 setup_page()
 
 
 def main():
-    st.title("📐 Verificación de Método — EP15-A3")
-    st.markdown(
-        "Verificación de precisión (repetibilidad y precisión intermedia) y sesgo "
-        "conforme al protocolo **CLSI EP15-A3**."
+    page_header(
+        icon="📐",
+        title="Verificación de Método — EP15-A3",
+        subtitle="Verificación de precisión (repetibilidad e intermedia) y sesgo conforme a CLSI EP15-A3",
+        badge="Verificación Analítica",
     )
     tab_nueva, tab_datos, tab_resultados = st.tabs(
         ["🆕 Nueva Sesión", "📊 Ingresar / Editar Datos", "📈 Resultados"]

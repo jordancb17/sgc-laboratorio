@@ -56,10 +56,11 @@ def listar_equipos(db: Session, area_id: Optional[int] = None, solo_activos: boo
     return q.order_by(Equipo.nombre).all()
 
 
-def crear_equipo(db: Session, area_id: int, nombre: str, modelo: str = "", numero_serie: str = "") -> Equipo:
+def crear_equipo(db: Session, area_id: int, nombre: str, marca: str = "", modelo: str = "", numero_serie: str = "") -> Equipo:
     equipo = Equipo(
         area_id=area_id,
         nombre=nombre.strip(),
+        marca=marca.strip(),
         modelo=modelo.strip(),
         numero_serie=numero_serie.strip(),
     )

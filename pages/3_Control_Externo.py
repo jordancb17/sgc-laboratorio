@@ -18,12 +18,17 @@ from database import crud
 
 st.set_page_config(page_title="Control Externo", page_icon="🌐", layout="wide")
 init_db()
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 setup_page()
 
 
 def main():
-    st.title("🌐 Control Externo de Calidad (PEEC / EQA)")
+    page_header(
+        icon="🌐",
+        title="Control Externo de Calidad",
+        subtitle="PEEC / EQA — Evaluación externa del desempeño analítico con z-score y percentil",
+        badge="Control Externo",
+    )
     tab_reg, tab_ver = st.tabs(["📝 Registrar Resultado", "📊 Ver Resultados y Tendencia"])
     db = get_session()
     try:

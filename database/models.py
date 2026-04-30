@@ -38,6 +38,7 @@ class Equipo(Base):
     id = Column(Integer, primary_key=True)
     area_id = Column(Integer, ForeignKey("areas.id"), nullable=False)
     nombre = Column(String(100), nullable=False)
+    marca = Column(String(100))
     modelo = Column(String(100))
     numero_serie = Column(String(100))
     activo = Column(Boolean, default=True)

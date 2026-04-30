@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 from database.database import init_db, get_session
 from database import crud
 from database.models import CAUSAS_PROBABLES, RESULTADOS_AC
-from modules.page_utils import setup_page
+from modules.page_utils import setup_page, page_header
 
 st.set_page_config(page_title="Acciones Correctivas", page_icon="🔧", layout="wide")
 init_db()
@@ -24,7 +24,12 @@ setup_page()
 
 
 def main():
-    st.title("🔧 Acciones Correctivas")
+    page_header(
+        icon="🔧",
+        title="Acciones Correctivas",
+        subtitle="Gestión de rechazos: registro de causa, acción tomada y seguimiento de resolución",
+        badge="Gestión de No Conformidades",
+    )
 
     db = get_session()
     try:
