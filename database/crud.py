@@ -4,7 +4,7 @@ Operaciones CRUD para todos los modelos del sistema.
 
 from datetime import date, time, datetime
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 
 from .models import (
@@ -48,7 +48,7 @@ def desactivar_area(db: Session, area_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_equipos(db: Session, area_id: Optional[int] = None, solo_activos: bool = True) -> list[Equipo]:
-    q = db.query(Equipo)
+    q = db.query(Equipo).options(joinedload(Equipo.area))
     if area_id:
         q = q.filter(Equipo.area_id == area_id)
     if solo_activos:
@@ -117,7 +117,9 @@ def desactivar_personal(db: Session, personal_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_materiales(db: Session, equipo_id: Optional[int] = None, solo_activos: bool = True) -> list[MaterialControl]:
-    q = db.query(MaterialControl)
+    q = db.query(MaterialControl).options(
+        joinedload(MaterialControl.equipo).joinedload(Equipo.area)
+    )
     if equipo_id:
         q = q.filter(MaterialControl.equipo_id == equipo_id)
     if solo_activos:
@@ -363,7 +365,12 @@ def listar_controles_diarios(
     nivel: Optional[int] = None,
     personal_id: Optional[int] = None,
 ) -> list[ControlDiario]:
-    q = db.query(ControlDiario)
+    q = db.query(ControlDiario).options(
+        joinedload(ControlDiario.nivel_lote),
+        joinedload(ControlDiario.personal),
+        joinedload(ControlDiario.accion_correctiva),
+        joinedload(ControlDiario.material).joinedload(MaterialControl.equipo).joinedload(Equipo.area),
+    )
     if material_id:
         q = q.filter(ControlDiario.material_id == material_id)
     if fecha_desde:
@@ -750,7 +757,10 @@ def listar_calibraciones(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[Calibracion]:
-    q = db.query(Calibracion)
+    q = db.query(Calibracion).options(
+        joinedload(Calibracion.equipo).joinedload(Equipo.area),
+        joinedload(Calibracion.personal),
+    )
     if equipo_id:
         q = q.filter(Calibracion.equipo_id == equipo_id)
     if fecha_desde:
@@ -765,6 +775,7 @@ def proximas_calibraciones(db: Session, dias: int = 30) -> list[Calibracion]:
     hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
     return (
         db.query(Calibracion)
+        .options(joinedload(Calibracion.equipo).joinedload(Equipo.area))
         .filter(Calibracion.proxima_calibracion.between(desde, hasta))
         .order_by(Calibracion.proxima_calibracion.asc())
         .all()
@@ -806,7 +817,10 @@ def listar_mantenimientos(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[Mantenimiento]:
-    q = db.query(Mantenimiento)
+    q = db.query(Mantenimiento).options(
+        joinedload(Mantenimiento.equipo).joinedload(Equipo.area),
+        joinedload(Mantenimiento.personal),
+    )
     if equipo_id:
         q = q.filter(Mantenimiento.equipo_id == equipo_id)
     if fecha_desde:
@@ -821,6 +835,7 @@ def proximos_mantenimientos(db: Session, dias: int = 30) -> list[Mantenimiento]:
     hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
     return (
         db.query(Mantenimiento)
+        .options(joinedload(Mantenimiento.equipo).joinedload(Equipo.area))
         .filter(Mantenimiento.proxima_fecha.between(desde, hasta))
         .order_by(Mantenimiento.proxima_fecha.asc())
         .all()
