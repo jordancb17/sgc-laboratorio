@@ -1,6 +1,5 @@
 """
-Módulo de autenticación — pantalla de login profesional.
-Credenciales en .streamlit/secrets.toml bajo [credentials].
+Módulo de autenticación — pantalla de login estilo moderno/clean.
 """
 
 import streamlit as st
@@ -27,199 +26,150 @@ def _show_login():
     <style>
     section[data-testid="stSidebar"] { display: none !important; }
 
-    /* Fondo con gradiente degradado oscuro */
-    .stApp {
-        background: linear-gradient(135deg, #0a1628 0%, #0d2347 40%, #0f3460 70%, #1a1a4e 100%) !important;
-    }
+    /* Fondo gris muy suave — estilo Facebook */
+    .stApp { background: #f0f2f5 !important; }
+
     .main .block-container {
-        padding-top: 0 !important;
-        max-width: 480px !important;
-        margin: auto !important;
+        padding: 0 !important;
+        max-width: 100% !important;
     }
 
-    /* Partículas decorativas */
-    .login-bg-decoration {
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        pointer-events: none; z-index: 0;
-        background:
-            radial-gradient(ellipse at 20% 50%, rgba(14,165,233,0.08) 0%, transparent 50%),
-            radial-gradient(ellipse at 80% 20%, rgba(56,189,248,0.06) 0%, transparent 50%),
-            radial-gradient(ellipse at 60% 80%, rgba(99,102,241,0.05) 0%, transparent 50%);
-    }
-
-    /* Card de login */
-    .login-outer {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 85vh;
-        padding: 20px;
-    }
-    .login-card-pro {
-        background: rgba(255,255,255,0.97);
-        border-radius: 24px;
-        padding: 52px 48px 44px;
-        box-shadow:
-            0 32px 80px rgba(0,0,0,0.4),
-            0 0 0 1px rgba(255,255,255,0.08),
-            inset 0 1px 0 rgba(255,255,255,0.5);
-        text-align: center;
-        width: 100%;
-        backdrop-filter: blur(20px);
-    }
-
-    /* Logo circular */
-    .login-logo {
-        width: 84px; height: 84px;
-        background: linear-gradient(135deg, #0a1628 0%, #0d2d6b 100%);
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 22px;
-        font-size: 38px;
-        box-shadow: 0 8px 24px rgba(10,22,40,0.4), 0 0 0 4px rgba(14,165,233,0.2);
-    }
-
-    /* Badge versión */
-    .login-badge {
-        display: inline-block;
-        background: linear-gradient(135deg, #eff6ff, #dbeafe);
-        color: #1d4ed8;
-        font-size: 0.68rem;
-        font-weight: 700;
-        padding: 4px 14px;
-        border-radius: 20px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 16px;
-        border: 1px solid #bfdbfe;
-    }
-
-    .login-title {
-        font-size: 1.6rem;
-        font-weight: 800;
-        color: #0a1628;
-        margin-bottom: 6px;
-        letter-spacing: -0.03em;
-        line-height: 1.2;
-    }
-    .login-subtitle {
-        font-size: 0.84rem;
-        color: #64748b;
-        margin-bottom: 0;
-        font-weight: 400;
-    }
-    .login-divider {
-        height: 1px;
-        background: linear-gradient(90deg, transparent, #e2e8f0 30%, #e2e8f0 70%, transparent);
-        margin: 28px 0 26px;
-    }
-
-    /* Features strip */
-    .login-features {
-        display: flex;
-        justify-content: center;
-        gap: 20px;
-        margin-bottom: 28px;
-        flex-wrap: wrap;
-    }
-    .login-feature {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        font-size: 0.72rem;
-        color: #64748b;
-        font-weight: 500;
-    }
-
-    .login-footer {
-        font-size: 0.7rem;
-        color: #94a3b8;
-        margin-top: 24px;
-        padding-top: 18px;
-        border-top: 1px solid #f1f5f9;
-    }
-
-    /* Ajustar inputs dentro de login */
+    /* Inputs */
     .stTextInput > div > div > input {
-        border-radius: 12px !important;
-        border: 1.5px solid #e2e8f0 !important;
-        padding: 12px 16px !important;
-        font-size: 0.95rem !important;
-        background: #f8fafc !important;
-        transition: all 0.2s !important;
+        border-radius: 6px !important;
+        border: 1px solid #dddfe2 !important;
+        padding: 14px 16px !important;
+        font-size: 1rem !important;
+        background: white !important;
+        color: #1c1e21 !important;
+        box-shadow: none !important;
+        transition: border-color 0.15s, box-shadow 0.15s !important;
+        height: 52px !important;
     }
     .stTextInput > div > div > input:focus {
-        border-color: #0ea5e9 !important;
-        box-shadow: 0 0 0 4px rgba(14,165,233,0.1) !important;
-        background: white !important;
+        border-color: #1877f2 !important;
+        box-shadow: 0 0 0 2px rgba(24,119,242,0.2) !important;
     }
-    .stTextInput label {
-        font-size: 0.82rem !important;
-        font-weight: 600 !important;
-        color: #374151 !important;
-        letter-spacing: 0.02em !important;
-    }
+    .stTextInput > div > div > input::placeholder { color: #90949c !important; font-size: 1rem !important; }
+    .stTextInput label { display: none !important; }
+
+    /* Botón principal */
     .stButton > button[kind="primary"] {
-        border-radius: 12px !important;
-        padding: 13px !important;
-        font-size: 0.95rem !important;
+        width: 100% !important;
+        border-radius: 8px !important;
+        background: linear-gradient(180deg, #1a77f2 0%, #1565c0 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-size: 1.05rem !important;
         font-weight: 700 !important;
-        background: linear-gradient(135deg, #0a1628 0%, #0d2d6b 60%, #1d4ed8 100%) !important;
-        box-shadow: 0 4px 16px rgba(10,22,40,0.35) !important;
-        letter-spacing: 0.02em !important;
+        height: 52px !important;
+        letter-spacing: 0.01em !important;
+        box-shadow: 0 2px 6px rgba(24,119,242,0.4) !important;
         transition: all 0.2s !important;
     }
     .stButton > button[kind="primary"]:hover {
-        box-shadow: 0 8px 24px rgba(10,22,40,0.45) !important;
+        background: linear-gradient(180deg, #166fe5 0%, #1255aa 100%) !important;
+        box-shadow: 0 4px 12px rgba(24,119,242,0.5) !important;
         transform: translateY(-1px) !important;
     }
+
+    /* Ocultar label del form */
+    [data-testid="stForm"] {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    /* Mensajes de error */
+    [data-testid="stAlert"] {
+        border-radius: 8px !important;
+        font-size: 0.88rem !important;
+    }
     </style>
-
-    <div class="login-bg-decoration"></div>
     """, unsafe_allow_html=True)
 
-    # Espaciado superior
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Layout: columna centrada
+    _, col, _ = st.columns([1, 1.2, 1])
 
-    # Card completa
-    st.markdown("""
-    <div class="login-card-pro">
-        <div class="login-logo">🔬</div>
-        <div class="login-badge">⚕️ Sistema de Gestión de Calidad</div>
-        <div class="login-title">SGC Laboratorio Clínico</div>
-        <div class="login-subtitle">Ingrese sus credenciales para acceder al sistema</div>
-        <div class="login-divider"></div>
-        <div class="login-features">
-            <div class="login-feature">🧪 Westgard Multi-Regla</div>
-            <div class="login-feature">📊 EP15-A3 CLSI</div>
-            <div class="login-feature">🌐 Control Externo</div>
-            <div class="login-feature">☁️ Nube 24/7</div>
+    with col:
+        st.markdown("<div style='height:48px'></div>", unsafe_allow_html=True)
+
+        # Logo + nombre del sistema
+        st.markdown("""
+        <div style="text-align:center; margin-bottom:28px;">
+            <div style="
+                width: 76px; height: 76px;
+                background: linear-gradient(145deg, #0a1628, #1d4ed8);
+                border-radius: 50%;
+                display: flex; align-items: center; justify-content: center;
+                margin: 0 auto 18px;
+                box-shadow: 0 4px 18px rgba(24,119,242,0.35);
+                font-size: 36px;
+            ">🔬</div>
+            <div style="font-size:1.65rem; font-weight:800; color:#0a1628;
+                        letter-spacing:-0.03em; line-height:1.1;">
+                SGC Laboratorio
+            </div>
+            <div style="font-size:0.95rem; color:#65676b; margin-top:6px; font-weight:400;">
+                Sistema de Gestión de Calidad
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    # Formulario (fuera del HTML para que Streamlit lo procese)
-    with st.form("_login_form", clear_on_submit=False):
-        st.markdown("<br>", unsafe_allow_html=True)
-        usuario   = st.text_input("👤  Usuario", placeholder="Ingrese su usuario")
-        contrasena = st.text_input("🔒  Contraseña", type="password", placeholder="••••••••••")
-        st.markdown("<br>", unsafe_allow_html=True)
-        ingresar  = st.form_submit_button("🔑  Iniciar Sesión", use_container_width=True, type="primary")
+        # Card blanca
+        st.markdown("""
+        <div style="
+            background: white;
+            border-radius: 10px;
+            padding: 28px 28px 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.04);
+        ">
+        """, unsafe_allow_html=True)
+
+        with st.form("_login_form", clear_on_submit=False):
+            st.text_input("u", placeholder="Usuario", key="_u", label_visibility="collapsed")
+            st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+            st.text_input("p", placeholder="Contraseña", type="password", key="_p", label_visibility="collapsed")
+            st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+            ingresar = st.form_submit_button("Iniciar sesión", use_container_width=True, type="primary")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Chips de funcionalidades
+        st.markdown("""
+        <div style="
+            display:flex; justify-content:center; gap:10px;
+            flex-wrap:wrap; margin-top:22px; margin-bottom:4px;
+        ">
+            <span style="background:white; border:1px solid #dddfe2; border-radius:20px;
+                         padding:5px 13px; font-size:0.72rem; color:#65676b; font-weight:500;
+                         box-shadow:0 1px 3px rgba(0,0,0,0.06);">🧪 Westgard</span>
+            <span style="background:white; border:1px solid #dddfe2; border-radius:20px;
+                         padding:5px 13px; font-size:0.72rem; color:#65676b; font-weight:500;
+                         box-shadow:0 1px 3px rgba(0,0,0,0.06);">📊 EP15-A3</span>
+            <span style="background:white; border:1px solid #dddfe2; border-radius:20px;
+                         padding:5px 13px; font-size:0.72rem; color:#65676b; font-weight:500;
+                         box-shadow:0 1px 3px rgba(0,0,0,0.06);">🌐 PEEC</span>
+            <span style="background:white; border:1px solid #dddfe2; border-radius:20px;
+                         padding:5px 13px; font-size:0.72rem; color:#65676b; font-weight:500;
+                         box-shadow:0 1px 3px rgba(0,0,0,0.06);">☁️ Nube 24/7</span>
+        </div>
+        <div style="text-align:center; color:#bcc0c4; font-size:0.68rem; margin-top:20px;">
+            v2.0 · Acceso seguro · Datos protegidos
+        </div>
+        """, unsafe_allow_html=True)
 
     if ingresar:
+        usuario    = st.session_state.get("_u", "")
+        contrasena = st.session_state.get("_p", "")
         creds = _get_credentials()
         if usuario in creds and creds[usuario] == contrasena:
-            st.session_state["_auth_ok"] = True
+            st.session_state["_auth_ok"]   = True
             st.session_state["_auth_user"] = usuario
             st.rerun()
         else:
-            st.error("❌ Usuario o contraseña incorrectos. Intente nuevamente.")
-
-    st.markdown("""
-    <div style="text-align:center; color:rgba(255,255,255,0.35); font-size:0.7rem; margin-top:20px;">
-        v2.0 &nbsp;·&nbsp; Westgard &nbsp;·&nbsp; EP15-A3 &nbsp;·&nbsp; PEEC &nbsp;·&nbsp; Acceso seguro
-    </div>
-    """, unsafe_allow_html=True)
+            st.error("El usuario o la contraseña que ingresaste es incorrecta.")
 
 
 def logout():
@@ -253,7 +203,7 @@ def render_sidebar_user():
                 box-shadow: 0 3px 8px rgba(14,165,233,0.3);
             ">👤</div>
             <div>
-                <div style="color:white; font-weight:700; font-size:0.88rem; letter-spacing:0.01em;">{user}</div>
+                <div style="color:white; font-weight:700; font-size:0.88rem;">{user}</div>
                 <div style="color:#38bdf8; font-size:0.7rem; font-weight:500;">
                     <span style="display:inline-block; width:6px; height:6px; background:#10b981;
                     border-radius:50%; margin-right:4px; vertical-align:middle;"></span>
