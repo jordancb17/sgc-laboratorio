@@ -79,24 +79,19 @@ def _tab_informe(db):
     col_dec_text = "#7f1d1d" if rechazos else "#065f46"
     icono_dec = "🛑" if rechazos else "✅"
 
-    st.markdown(f"""
-    <div style="
-        background:{col_dec_color}; border:2px solid {col_dec_border};
-        border-radius:14px; padding:20px 28px; margin-bottom:20px;
-        display:flex; align-items:center; gap:20px;
-    ">
-        <div style="font-size:3rem;">{icono_dec}</div>
-        <div>
-            <div style="font-size:1.4rem; font-weight:800; color:{col_dec_text}; letter-spacing:-0.02em;">
-                CORRIDA {decision}
-            </div>
-            <div style="color:{col_dec_text}; font-size:0.88rem; margin-top:4px; opacity:0.8;">
-                {fecha_sel.strftime('%d/%m/%Y')} · Turno: {turno_sel}
-                · {total} controles · {len(rechazos)} rechazo(s) · {len(advertencias)} advertencia(s)
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html(
+        f"<div style='background:{col_dec_color}; border:2px solid {col_dec_border};"
+        f" border-radius:14px; padding:20px 28px; margin-bottom:20px;"
+        f" display:flex; align-items:center; gap:20px;'>"
+        f"<div style='font-size:3rem;'>{icono_dec}</div>"
+        f"<div>"
+        f"<div style='font-size:1.4rem; font-weight:800; color:{col_dec_text};"
+        f" letter-spacing:-0.02em;'>CORRIDA {decision}</div>"
+        f"<div style='color:{col_dec_text}; font-size:0.88rem; margin-top:4px; opacity:0.8;'>"
+        f"{fecha_sel.strftime('%d/%m/%Y')} · Turno: {turno_sel} "
+        f"· {total} controles · {len(rechazos)} rechazo(s) · {len(advertencias)} advertencia(s)"
+        f"</div></div></div>"
+    )
 
     # ── KPIs de la corrida ────────────────────────────────────────────────
     c1, c2, c3, c4 = st.columns(4)

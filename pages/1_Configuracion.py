@@ -382,29 +382,24 @@ def _tab_lotes(db):
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 def _section_title(title: str, subtitle: str = ""):
-    st.markdown(f"""
-    <div style="margin-bottom:1.1rem;">
-        <div style="font-size:1.05rem; font-weight:700; color:var(--txt-primary,#0a1628); margin-bottom:2px;">
-            {title}
-        </div>
-        <div style="font-size:0.8rem; color:var(--txt-muted,#94a3b8);">{subtitle}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html(
+        f"<div style='margin-bottom:1.1rem;'>"
+        f"<div style='font-size:1.05rem; font-weight:700; color:var(--txt-primary,#f1f5f9); margin-bottom:2px;'>{title}</div>"
+        f"<div style='font-size:0.8rem; color:var(--txt-muted,#94a3b8);'>{subtitle}</div>"
+        f"</div>"
+    )
 
 
 def _empty_state(msg: str):
-    st.markdown(f"""
-    <div style="
-        text-align:center; padding:2.5rem 1rem;
-        color:var(--txt-muted,#94a3b8); font-size:0.9rem;
-        background:var(--surface-2,#f8fafc);
-        border-radius:12px; border:1px dashed var(--border,#e2e8f0);
-        margin-top:1rem;
-    ">
-        <div style="font-size:2rem; margin-bottom:10px;">📭</div>
-        {msg}
-    </div>
-    """, unsafe_allow_html=True)
+    st.html(
+        "<div style='text-align:center; padding:2.5rem 1rem;"
+        " color:var(--txt-muted,#94a3b8); font-size:0.9rem;"
+        " background:rgba(255,255,255,0.03);"
+        " border-radius:12px; border:1px dashed rgba(255,255,255,0.10);"
+        " margin-top:1rem;'>"
+        f"<div style='font-size:2rem; margin-bottom:10px;'>📭</div>"
+        f"{msg}</div>"
+    )
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ def _build_engine():
             max_overflow=5,
             pool_timeout=20,
             pool_recycle=1800,
+            connect_args={"prepare_threshold": 0},
         ), True
     return create_engine(url, connect_args={"check_same_thread": False}), False
 

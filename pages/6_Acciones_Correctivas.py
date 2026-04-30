@@ -126,17 +126,18 @@ def _tab_registrar(db):
         ctrl = db.query(__import__('database.models', fromlist=['ControlDiario']).ControlDiario).filter_by(id=int(ctrl_id)).first()
         if ctrl:
             mat = ctrl.material
-            st.markdown(f"""
-            <div style="background:#fef2f2; border-left:4px solid #dc2626; border-radius:8px; padding:12px 16px; margin:8px 0;">
-                <b>❌ Control rechazado</b> —
-                {mat.equipo.area.nombre} › {mat.equipo.nombre} › <b>{mat.analito}</b>
-                Nivel {ctrl.nivel_lote.nivel} &nbsp;|&nbsp;
-                Valor: <b>{ctrl.valor}</b> {mat.unidad or ''} &nbsp;|&nbsp;
-                z = {ctrl.zscore:.3f} &nbsp;|&nbsp;
-                Regla: <b>{ctrl.regla_violada}</b> &nbsp;|&nbsp;
-                {ctrl.fecha} {ctrl.hora.strftime("%H:%M")}
-            </div>
-            """, unsafe_allow_html=True)
+            st.html(
+                f"<div style='background:rgba(220,38,38,0.12); border-left:4px solid #dc2626;"
+                f" border-radius:8px; padding:12px 16px; margin:8px 0; color:#fca5a5;'>"
+                f"<b>❌ Control rechazado</b> — "
+                f"{mat.equipo.area.nombre} › {mat.equipo.nombre} › <b>{mat.analito}</b> "
+                f"Nivel {ctrl.nivel_lote.nivel} &nbsp;|&nbsp; "
+                f"Valor: <b>{ctrl.valor}</b> {mat.unidad or ''} &nbsp;|&nbsp; "
+                f"z = {ctrl.zscore:.3f} &nbsp;|&nbsp; "
+                f"Regla: <b>{ctrl.regla_violada}</b> &nbsp;|&nbsp; "
+                f"{ctrl.fecha} {ctrl.hora.strftime('%H:%M')}"
+                f"</div>"
+            )
 
             ac_existente = crud.get_accion_correctiva_por_control(db, int(ctrl_id))
             if ac_existente:

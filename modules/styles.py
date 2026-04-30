@@ -424,6 +424,24 @@ hr {
 .kpi-amber { border-top-color: #f59e0b; }
 .kpi-red   { border-top-color: #ef4444; }
 .kpi-purple{ border-top-color: #8b5cf6; }
+.kpi-teal  { border-top-color: #14b8a6; }
+.kpi-indigo{ border-top-color: #6366f1; }
+.kpi-navy  { border-top-color: #1d4ed8; }
+
+/* KPI sólidas — estilo referencia */
+.kpi-solid { border: none !important; border-top: none !important; }
+.kpi-solid .kpi-value,
+.kpi-solid .kpi-label,
+.kpi-solid .kpi-sub { color: rgba(255,255,255,0.9) !important; }
+.kpi-solid .kpi-icon { filter: brightness(1.3); }
+.kpi-s-blue   { background: linear-gradient(135deg,#1d4ed8,#2563eb) !important; }
+.kpi-s-green  { background: linear-gradient(135deg,#15803d,#16a34a) !important; }
+.kpi-s-amber  { background: linear-gradient(135deg,#b45309,#d97706) !important; }
+.kpi-s-red    { background: linear-gradient(135deg,#b91c1c,#dc2626) !important; }
+.kpi-s-purple { background: linear-gradient(135deg,#7e22ce,#9333ea) !important; }
+.kpi-s-teal   { background: linear-gradient(135deg,#0f766e,#0d9488) !important; }
+.kpi-s-indigo { background: linear-gradient(135deg,#166534,#15803d) !important; }
+.kpi-s-navy   { background: linear-gradient(135deg,#1e3a8a,#1d4ed8) !important; }
 
 /* ══════════════════════════════════════════════════════════════
    SECTION HEADER — Gradiente marino
@@ -593,4 +611,4 @@ hr {
 
 
 def inject_css():
-    st.markdown(MAIN_CSS, unsafe_allow_html=True)
+    st.html(MAIN_CSS)

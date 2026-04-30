@@ -47,16 +47,7 @@ def main():
 
 def _carga_masiva(db):
     # ── PASO 1: Selección de analito ─────────────────────────────────────────
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;">
-        <div style="background:linear-gradient(135deg,#0a1f42,#1a3a8f);color:white;
-            border-radius:50%;width:32px;height:32px;display:flex;align-items:center;
-            justify-content:center;font-weight:800;font-size:0.9rem;flex-shrink:0;">1</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--txt-primary,#0a1628);">
-            Seleccione el analito y lote
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html("<div style='display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;'><div style='background:linear-gradient(135deg,#0ea5e9,#1d4ed8);color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;'>1</div><div style='font-size:1rem;font-weight:700;color:white;'>Seleccione el analito y lote</div></div>")
 
     areas = crud.listar_areas(db)
     if not areas:
@@ -107,16 +98,7 @@ def _carga_masiva(db):
     st.markdown("---")
 
     # ── PASO 2: Rango de fechas ──────────────────────────────────────────────
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;">
-        <div style="background:linear-gradient(135deg,#0a1f42,#1a3a8f);color:white;
-            border-radius:50%;width:32px;height:32px;display:flex;align-items:center;
-            justify-content:center;font-weight:800;font-size:0.9rem;flex-shrink:0;">2</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--txt-primary,#0a1628);">
-            Defina el período a cargar
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html("<div style='display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;'><div style='background:linear-gradient(135deg,#0ea5e9,#1d4ed8);color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;'>2</div><div style='font-size:1rem;font-weight:700;color:white;'>Defina el período a cargar</div></div>")
 
     col_d1, col_d2, col_freq, col_hora = st.columns(4)
     fecha_desde = col_d1.date_input("Desde", value=date.today() - timedelta(days=30), key="cm_desde")
@@ -145,16 +127,7 @@ def _carga_masiva(db):
     st.markdown("---")
 
     # ── PASO 3: Cuadrícula de datos ──────────────────────────────────────────
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;">
-        <div style="background:linear-gradient(135deg,#0a1f42,#1a3a8f);color:white;
-            border-radius:50%;width:32px;height:32px;display:flex;align-items:center;
-            justify-content:center;font-weight:800;font-size:0.9rem;flex-shrink:0;">3</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--txt-primary,#0a1628);">
-            Complete la cuadrícula de valores
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html("<div style='display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;'><div style='background:linear-gradient(135deg,#0ea5e9,#1d4ed8);color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;'>3</div><div style='font-size:1rem;font-weight:700;color:white;'>Complete la cuadrícula de valores</div></div>")
 
     # Mostrar referencia de valores objetivo
     with st.expander("📋 Valores objetivo del lote (referencia)", expanded=False):
@@ -219,16 +192,7 @@ def _carga_masiva(db):
     st.markdown("---")
 
     # ── PASO 4: Vista previa y confirmación ──────────────────────────────────
-    st.markdown("""
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;">
-        <div style="background:linear-gradient(135deg,#0a1f42,#1a3a8f);color:white;
-            border-radius:50%;width:32px;height:32px;display:flex;align-items:center;
-            justify-content:center;font-weight:800;font-size:0.9rem;flex-shrink:0;">4</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--txt-primary,#0a1628);">
-            Vista previa y confirmación
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.html("<div style='display:flex;align-items:center;gap:10px;margin-bottom:0.75rem;'><div style='background:linear-gradient(135deg,#0ea5e9,#1d4ed8);color:white;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.9rem;'>4</div><div style='font-size:1rem;font-weight:700;color:white;'>Vista previa y confirmación</div></div>")
 
     col_prev, col_conf = st.columns([1, 1])
 
