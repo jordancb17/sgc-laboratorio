@@ -72,6 +72,8 @@ def _migrate_sqlite():
         ("controles_diarios", "turno",          "ALTER TABLE controles_diarios ADD COLUMN turno VARCHAR(20)"),
         ("controles_diarios", "es_retroactivo", "ALTER TABLE controles_diarios ADD COLUMN es_retroactivo BOOLEAN DEFAULT 0"),
         ("equipos",           "marca",          "ALTER TABLE equipos ADD COLUMN marca VARCHAR(100)"),
+        ("calibraciones",     "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
+        ("mantenimiento",     "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
     ]
     with engine.connect() as conn:
         for tabla, columna, sql in migraciones:

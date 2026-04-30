@@ -10,7 +10,7 @@ from sqlalchemy import and_
 from .models import (
     Area, Equipo, Personal, MaterialControl, Lote, NivelLote,
     ControlDiario, ControlExterno, SesionEP15, MedicionEP15, AccionCorrectiva,
-    IndiceCalidad,
+    IndiceCalidad, Calibracion, Mantenimiento,
 )
 from modules.westgard import evaluar_westgard
 
@@ -711,3 +711,189 @@ def obtener_indice_calidad(db: Session, material_id: int) -> Optional[IndiceCali
 
 def listar_indices_calidad(db: Session) -> list[IndiceCalidad]:
     return db.query(IndiceCalidad).all()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CALIBRACIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def registrar_calibracion(
+    db: Session,
+    equipo_id: int,
+    personal_id: Optional[int],
+    fecha: date,
+    tipo: str,
+    lote_calibrador: str = "",
+    resultado: str = "APROBADA",
+    observaciones: str = "",
+    proxima_calibracion: Optional[date] = None,
+) -> Calibracion:
+    cal = Calibracion(
+        equipo_id=equipo_id,
+        personal_id=personal_id,
+        fecha=fecha,
+        tipo=tipo,
+        lote_calibrador=lote_calibrador.strip(),
+        resultado=resultado,
+        observaciones=observaciones.strip(),
+        proxima_calibracion=proxima_calibracion,
+    )
+    db.add(cal)
+    db.commit()
+    db.refresh(cal)
+    return cal
+
+
+def listar_calibraciones(
+    db: Session,
+    equipo_id: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> list[Calibracion]:
+    q = db.query(Calibracion)
+    if equipo_id:
+        q = q.filter(Calibracion.equipo_id == equipo_id)
+    if fecha_desde:
+        q = q.filter(Calibracion.fecha >= fecha_desde)
+    if fecha_hasta:
+        q = q.filter(Calibracion.fecha <= fecha_hasta)
+    return q.order_by(Calibracion.fecha.desc()).all()
+
+
+def proximas_calibraciones(db: Session, dias: int = 30) -> list[Calibracion]:
+    desde = date.today()
+    hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
+    return (
+        db.query(Calibracion)
+        .filter(Calibracion.proxima_calibracion.between(desde, hasta))
+        .order_by(Calibracion.proxima_calibracion.asc())
+        .all()
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MANTENIMIENTO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def registrar_mantenimiento(
+    db: Session,
+    equipo_id: int,
+    personal_id: Optional[int],
+    fecha: date,
+    tipo: str,
+    descripcion: str,
+    resultado: str = "COMPLETADO",
+    proxima_fecha: Optional[date] = None,
+) -> Mantenimiento:
+    mant = Mantenimiento(
+        equipo_id=equipo_id,
+        personal_id=personal_id,
+        fecha=fecha,
+        tipo=tipo,
+        descripcion=descripcion.strip(),
+        resultado=resultado,
+        proxima_fecha=proxima_fecha,
+    )
+    db.add(mant)
+    db.commit()
+    db.refresh(mant)
+    return mant
+
+
+def listar_mantenimientos(
+    db: Session,
+    equipo_id: Optional[int] = None,
+    fecha_desde: Optional[date] = None,
+    fecha_hasta: Optional[date] = None,
+) -> list[Mantenimiento]:
+    q = db.query(Mantenimiento)
+    if equipo_id:
+        q = q.filter(Mantenimiento.equipo_id == equipo_id)
+    if fecha_desde:
+        q = q.filter(Mantenimiento.fecha >= fecha_desde)
+    if fecha_hasta:
+        q = q.filter(Mantenimiento.fecha <= fecha_hasta)
+    return q.order_by(Mantenimiento.fecha.desc()).all()
+
+
+def proximos_mantenimientos(db: Session, dias: int = 30) -> list[Mantenimiento]:
+    desde = date.today()
+    hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
+    return (
+        db.query(Mantenimiento)
+        .filter(Mantenimiento.proxima_fecha.between(desde, hasta))
+        .order_by(Mantenimiento.proxima_fecha.asc())
+        .all()
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CARGA MASIVA DE CONTROLES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def insertar_controles_masivo(
+    db: Session,
+    registros: list[dict],
+) -> tuple[int, int, list[str]]:
+    """
+    Inserta múltiples controles en lote.
+    Cada dict en registros tiene:
+        material_id, lote_id, nivel_lote_id, personal_id,
+        fecha, hora, turno, valor, comentario, es_retroactivo
+    Retorna (insertados, omitidos, errores[])
+    """
+    insertados = 0
+    omitidos   = 0
+    errores    = []
+
+    for i, reg in enumerate(registros):
+        try:
+            material_id  = reg["material_id"]
+            nivel_lote_id= reg["nivel_lote_id"]
+            fecha        = reg["fecha"]
+            hora         = reg["hora"]
+
+            if existe_control_diario(db, material_id, nivel_lote_id, fecha, hora):
+                omitidos += 1
+                continue
+
+            nivel_lote = db.query(NivelLote).filter(NivelLote.id == nivel_lote_id).first()
+            if not nivel_lote:
+                errores.append(f"Fila {i+1}: nivel de lote no encontrado.")
+                continue
+
+            hist_zs  = historial_zscores(db, nivel_lote_id)
+            otros_zs = zscores_mismo_run(db, material_id, fecha, hora, nivel_lote.nivel, reg["lote_id"])
+
+            resultado_wg = evaluar_westgard(
+                valor_nuevo=reg["valor"],
+                media=nivel_lote.media,
+                de=nivel_lote.de,
+                historial_zscores=hist_zs,
+                historial_zscores_otros_niveles=otros_zs if otros_zs else None,
+            )
+
+            control = ControlDiario(
+                material_id=material_id,
+                lote_id=reg["lote_id"],
+                nivel_lote_id=nivel_lote_id,
+                personal_id=reg["personal_id"],
+                fecha=fecha,
+                hora=hora,
+                turno=reg.get("turno"),
+                valor=reg["valor"],
+                zscore=resultado_wg.zscore,
+                resultado=resultado_wg.resultado,
+                regla_violada=resultado_wg.regla_violada,
+                es_retroactivo=reg.get("es_retroactivo", True),
+                comentario=reg.get("comentario", "").strip(),
+            )
+            db.add(control)
+            insertados += 1
+
+        except Exception as e:
+            errores.append(f"Fila {i+1}: {e}")
+
+    if insertados:
+        db.commit()
+    return insertados, omitidos, errores

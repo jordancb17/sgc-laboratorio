@@ -231,8 +231,68 @@ class IndiceCalidad(Base):
     __tablename__ = "indices_calidad"
     id = Column(Integer, primary_key=True)
     material_id = Column(Integer, ForeignKey("materiales_control.id"), nullable=False, unique=True)
-    tea = Column(Float, nullable=False)          # Error Total Permitido (%)
+    tea = Column(Float, nullable=False)
     sesgo_porcentual = Column(Float, default=0.0)
-    fuente_tea = Column(String(100))             # CLIA, RiliBÄK, laboratorio, etc.
+    fuente_tea = Column(String(100))
     actualizado_en = Column(DateTime, default=datetime.now, onupdate=datetime.now)
     material = relationship("MaterialControl")
+
+
+# ── Calibraciones ─────────────────────────────────────────────────────────────
+TIPOS_CALIBRACION = [
+    "Calibración completa",
+    "Calibración 2 puntos",
+    "Verificación de calibración",
+    "Calibración de urgencia",
+    "Recalibración post-mantenimiento",
+]
+RESULTADOS_CALIBRACION = ["APROBADA", "RECHAZADA", "PENDIENTE VERIFICACIÓN"]
+
+
+class Calibracion(Base):
+    __tablename__ = "calibraciones"
+    id = Column(Integer, primary_key=True)
+    equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
+    personal_id = Column(Integer, ForeignKey("personal.id"))
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String(100), nullable=False)
+    lote_calibrador = Column(String(100))
+    resultado = Column(String(50), default="APROBADA")
+    observaciones = Column(Text)
+    proxima_calibracion = Column(Date)
+    registrado_en = Column(DateTime, default=datetime.now)
+    equipo = relationship("Equipo")
+    personal = relationship("Personal")
+    __table_args__ = (
+        Index("ix_calibraciones_equipo_fecha", "equipo_id", "fecha"),
+    )
+
+
+# ── Mantenimiento ─────────────────────────────────────────────────────────────
+TIPOS_MANTENIMIENTO = [
+    "Preventivo programado",
+    "Correctivo",
+    "Limpieza profunda",
+    "Cambio de consumibles",
+    "Verificación post-reparación",
+    "Servicio técnico externo",
+]
+RESULTADOS_MANTENIMIENTO = ["COMPLETADO", "EN PROCESO", "PENDIENTE SERVICIO TÉCNICO"]
+
+
+class Mantenimiento(Base):
+    __tablename__ = "mantenimiento"
+    id = Column(Integer, primary_key=True)
+    equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
+    personal_id = Column(Integer, ForeignKey("personal.id"))
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=False)
+    resultado = Column(String(50), default="COMPLETADO")
+    proxima_fecha = Column(Date)
+    registrado_en = Column(DateTime, default=datetime.now)
+    equipo = relationship("Equipo")
+    personal = relationship("Personal")
+    __table_args__ = (
+        Index("ix_mantenimiento_equipo_fecha", "equipo_id", "fecha"),
+    )
