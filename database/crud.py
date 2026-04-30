@@ -10,6 +10,7 @@ from sqlalchemy import and_
 from .models import (
     Area, Equipo, Personal, MaterialControl, Lote, NivelLote,
     ControlDiario, ControlExterno, SesionEP15, MedicionEP15, AccionCorrectiva,
+    IndiceCalidad,
 )
 from modules.westgard import evaluar_westgard
 
@@ -672,3 +673,40 @@ def controles_sin_accion_correctiva(db: Session) -> list[ControlDiario]:
         .order_by(ControlDiario.fecha.desc())
         .all()
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ÍNDICE DE CALIDAD (TEa / Sigma)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def guardar_indice_calidad(
+    db: Session,
+    material_id: int,
+    tea: float,
+    sesgo_porcentual: float = 0.0,
+    fuente_tea: str = "",
+) -> IndiceCalidad:
+    ic = db.query(IndiceCalidad).filter(IndiceCalidad.material_id == material_id).first()
+    if ic:
+        ic.tea = tea
+        ic.sesgo_porcentual = sesgo_porcentual
+        ic.fuente_tea = fuente_tea.strip()
+    else:
+        ic = IndiceCalidad(
+            material_id=material_id,
+            tea=tea,
+            sesgo_porcentual=sesgo_porcentual,
+            fuente_tea=fuente_tea.strip(),
+        )
+        db.add(ic)
+    db.commit()
+    db.refresh(ic)
+    return ic
+
+
+def obtener_indice_calidad(db: Session, material_id: int) -> Optional[IndiceCalidad]:
+    return db.query(IndiceCalidad).filter(IndiceCalidad.material_id == material_id).first()
+
+
+def listar_indices_calidad(db: Session) -> list[IndiceCalidad]:
+    return db.query(IndiceCalidad).all()

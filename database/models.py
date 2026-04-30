@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, ForeignKey,
-    Boolean, Date, Time, Text, UniqueConstraint
+    Boolean, Date, Time, Text, UniqueConstraint, Index
 )
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
@@ -84,7 +84,10 @@ class Lote(Base):
     material = relationship("MaterialControl", back_populates="lotes")
     niveles = relationship("NivelLote", back_populates="lote", cascade="all, delete-orphan")
     controles_diarios = relationship("ControlDiario", back_populates="lote")
-    __table_args__ = (UniqueConstraint("material_id", "numero_lote", name="uq_material_lote"),)
+    __table_args__ = (
+        UniqueConstraint("material_id", "numero_lote", name="uq_material_lote"),
+        Index("ix_lotes_material_vencimiento", "material_id", "fecha_vencimiento"),
+    )
 
 
 class NivelLote(Base):
@@ -98,7 +101,10 @@ class NivelLote(Base):
     de = Column(Float, nullable=False)
     lote = relationship("Lote", back_populates="niveles")
     controles = relationship("ControlDiario", back_populates="nivel_lote")
-    __table_args__ = (UniqueConstraint("lote_id", "nivel", name="uq_lote_nivel"),)
+    __table_args__ = (
+        UniqueConstraint("lote_id", "nivel", name="uq_lote_nivel"),
+        Index("ix_niveles_lote_lote_nivel", "lote_id", "nivel"),
+    )
 
 
 class ControlDiario(Base):
@@ -110,10 +116,10 @@ class ControlDiario(Base):
     personal_id = Column(Integer, ForeignKey("personal.id"), nullable=False)
     fecha = Column(Date, nullable=False)
     hora = Column(Time, nullable=False)
-    turno = Column(String(20))                   # MAÑANA / TARDE / NOCHE / GUARDIA
+    turno = Column(String(20))
     valor = Column(Float, nullable=False)
     zscore = Column(Float)
-    resultado = Column(String(20))               # OK / ADVERTENCIA / RECHAZO
+    resultado = Column(String(20))
     regla_violada = Column(String(30))
     es_retroactivo = Column(Boolean, default=False)
     comentario = Column(Text)
@@ -125,11 +131,15 @@ class ControlDiario(Base):
     accion_correctiva = relationship("AccionCorrectiva", back_populates="control", uselist=False)
     __table_args__ = (
         UniqueConstraint("material_id", "nivel_lote_id", "fecha", "hora", name="uq_control_diario"),
+        Index("ix_controles_fecha_resultado", "fecha", "resultado"),
+        Index("ix_controles_material_fecha", "material_id", "fecha"),
+        Index("ix_controles_nivel_lote_fecha", "nivel_lote_id", "fecha"),
+        Index("ix_controles_personal", "personal_id"),
+        Index("ix_controles_turno_fecha", "turno", "fecha"),
     )
 
 
 class AccionCorrectiva(Base):
-    """Acción correctiva asociada a un control rechazado."""
     __tablename__ = "acciones_correctivas"
     id = Column(Integer, primary_key=True)
     control_id = Column(Integer, ForeignKey("controles_diarios.id"), nullable=False, unique=True)
@@ -210,4 +220,18 @@ class MedicionEP15(Base):
     sesion = relationship("SesionEP15", back_populates="mediciones")
     __table_args__ = (
         UniqueConstraint("sesion_id", "dia", "replicado", name="uq_medicion_ep15"),
+        Index("ix_mediciones_sesion", "sesion_id"),
     )
+
+
+# ── Tabla de Índice de Sigma por analito ──────────────────────────────────────
+class IndiceCalidad(Base):
+    """Almacena el Error Total Permitido (TEa) y Sesgo% por analito para el cálculo de Sigma."""
+    __tablename__ = "indices_calidad"
+    id = Column(Integer, primary_key=True)
+    material_id = Column(Integer, ForeignKey("materiales_control.id"), nullable=False, unique=True)
+    tea = Column(Float, nullable=False)          # Error Total Permitido (%)
+    sesgo_porcentual = Column(Float, default=0.0)
+    fuente_tea = Column(String(100))             # CLIA, RiliBÄK, laboratorio, etc.
+    actualizado_en = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    material = relationship("MaterialControl")

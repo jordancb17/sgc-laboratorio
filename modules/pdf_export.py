@@ -276,3 +276,113 @@ def reporte_levey_jennings_pdf(
     buf = io.BytesIO()
     pdf.output(buf)
     return buf.getvalue()
+
+
+# ── Informe de Corrida ────────────────────────────────────────────────────────
+
+def informe_corrida_pdf(
+    controles: list,
+    fecha,
+    turno: str,
+    decision: str,
+    laboratorio: str = "Laboratorio Clínico",
+) -> bytes:
+    pdf = ReportePDF(laboratorio)
+    pdf.add_page()
+
+    dec_color = VERDE if decision == "ACEPTADA" else ROJO
+    dec_bg    = VERDE_CL if decision == "ACEPTADA" else ROJO_CL
+
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.set_text_color(*AZUL)
+    pdf.cell(0, 9, "Informe de Corrida de Controles", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(*GRIS)
+    fecha_str = fecha.strftime("%d/%m/%Y") if hasattr(fecha, "strftime") else str(fecha)
+    pdf.cell(0, 6, f"{fecha_str}  -  Turno: {turno}", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.ln(4)
+
+    pdf.set_fill_color(*dec_bg)
+    pdf.set_text_color(*dec_color)
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 14, f"  CORRIDA {decision}  -  {len(controles)} controles evaluados",
+             fill=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.set_text_color(*NEGRO)
+    pdf.ln(6)
+
+    rechazos     = sum(1 for c in controles if c.resultado == "RECHAZO")
+    advertencias = sum(1 for c in controles if c.resultado == "ADVERTENCIA")
+    aceptados    = len(controles) - rechazos - advertencias
+
+    pdf.titulo_seccion("Resumen de la corrida")
+    pdf.ln(2)
+    pdf.kpi_box("Total", str(len(controles)), AZUL)
+    pdf.kpi_box("Aceptados", str(aceptados), VERDE)
+    pdf.kpi_box("Advertencias", str(advertencias), AMBAR)
+    pdf.kpi_box("Rechazos", str(rechazos), ROJO)
+    pdf.ln(22)
+    pdf.ln(4)
+
+    pdf.titulo_seccion("Detalle de controles")
+    cols = [("Hora", 14), ("Turno", 18), ("Area", 25), ("Equipo", 22),
+            ("Analito", 26), ("Nv", 8), ("Lote", 18), ("Valor", 16),
+            ("z-score", 14), ("Resultado", 22)]
+    anchos = [c[1] for c in cols]
+    pdf.tabla_encabezado(cols)
+    for i, c in enumerate(controles):
+        m = c.material
+        pdf.tabla_fila(
+            [c.hora.strftime("%H:%M"), c.turno or "-", m.equipo.area.nombre[:12],
+             m.equipo.nombre[:10], m.analito[:13], str(c.nivel_lote.nivel),
+             c.lote.numero_lote[:8], str(c.valor),
+             f"{c.zscore:.2f}" if c.zscore is not None else "-",
+             c.resultado],
+            anchos, resultado=c.resultado, par=(i % 2 == 0)
+        )
+    pdf.ln(6)
+
+    from collections import defaultdict
+    resumen: dict = defaultdict(lambda: {"total": 0, "ok": 0, "adv": 0, "rej": 0})
+    for c in controles:
+        k = f"{c.material.analito} Nv{c.nivel_lote.nivel}"
+        resumen[k]["total"] += 1
+        resumen[k][{"OK": "ok", "ADVERTENCIA": "adv", "RECHAZO": "rej"}.get(c.resultado, "ok")] += 1
+
+    pdf.titulo_seccion("Resumen por analito")
+    cols2 = [("Analito / Nivel", 60), ("N", 16), ("OK", 16), ("Adv.", 18), ("Rech.", 20), ("Estado", 48)]
+    anchos2 = [c[1] for c in cols2]
+    pdf.tabla_encabezado(cols2)
+    for i, (analito, d) in enumerate(sorted(resumen.items())):
+        estado = "ACEPTADO" if d["rej"] == 0 else "RECHAZADO"
+        pdf.tabla_fila(
+            [analito, str(d["total"]), str(d["ok"]), str(d["adv"]), str(d["rej"]), estado],
+            anchos2, resultado="RECHAZO" if d["rej"] else "", par=(i % 2 == 0)
+        )
+    pdf.ln(6)
+
+    rej_list = [c for c in controles if c.resultado == "RECHAZO"]
+    if rej_list:
+        pdf.titulo_seccion(f"Rechazos con regla violada ({len(rej_list)})")
+        cols3 = [("Hora", 16), ("Analito", 30), ("Nv", 8), ("Valor", 18),
+                 ("z", 14), ("Regla violada", 30), ("Personal", 62)]
+        anchos3 = [c[1] for c in cols3]
+        pdf.tabla_encabezado(cols3)
+        for c in rej_list:
+            m = c.material
+            pdf.tabla_fila(
+                [c.hora.strftime("%H:%M"), m.analito[:15], str(c.nivel_lote.nivel),
+                 str(c.valor), f"{c.zscore:.2f}" if c.zscore is not None else "-",
+                 c.regla_violada or "-",
+                 f"{c.personal.apellido[:14]}, {c.personal.nombre[:10]}"],
+                anchos3, resultado="RECHAZO"
+            )
+
+    pdf.ln(10)
+    pdf.set_font("Helvetica", "", 8)
+    pdf.set_text_color(*GRIS)
+    pdf.cell(0, 5, f"Documento generado por SGC Laboratorio  -  Fecha de impresion: {date.today()}",
+             new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+
+    buf = io.BytesIO()
+    pdf.output(buf)
+    return buf.getvalue()
