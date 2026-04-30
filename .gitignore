@@ -1,0 +1,20 @@
+# Base de datos local (NO subir - los datos van en Supabase)
+data/
+*.db
+*.db-journal
+
+# Respaldos locales
+backups/
+
+# Secretos (NO subir NUNCA)
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Logs y temporales
+*.log
+.DS_Store
