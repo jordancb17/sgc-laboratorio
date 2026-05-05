@@ -83,16 +83,39 @@ def _tab_areas(db):
     } for a in areas])
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    activas = [a for a in areas if a.activo]
-    if activas:
-        st.markdown("---")
-        st.markdown("**Desactivar área:**")
-        area_opts = {f"{a.nombre}": a.id for a in activas}
-        col1, col2 = st.columns([3, 1])
-        sel = col1.selectbox("Seleccione el área a desactivar", list(area_opts.keys()), key="del_area", label_visibility="collapsed")
-        if col2.button("⛔ Desactivar", key="btn_del_area", use_container_width=True):
-            crud.desactivar_area(db, area_opts[sel])
-            st.warning(f"Área **{sel}** desactivada.")
+    # ── Editar / Cambiar estado ──
+    st.markdown("---")
+    _section_title("✏️ Editar o Cambiar Estado")
+    area_opts_all = {f"{'✅' if a.activo else '⛔'} {a.nombre}": a.id for a in areas}
+    sel_area = st.selectbox("Seleccione el área:", list(area_opts_all.keys()),
+                            key="sel_area_edit", label_visibility="collapsed")
+    area_id_sel = area_opts_all[sel_area]
+    area_obj = next(a for a in areas if a.id == area_id_sel)
+
+    with st.form("form_edit_area"):
+        col1, col2 = st.columns([2, 3])
+        nuevo_nombre = col1.text_input("Nombre *", value=area_obj.nombre)
+        nueva_desc   = col2.text_input("Descripción", value=area_obj.descripcion or "")
+        estado_label = "✅ Activar" if not area_obj.activo else "⛔ Desactivar"
+        col_s, col_t = st.columns(2)
+        guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
+        toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+
+        if guardar:
+            if not nuevo_nombre.strip():
+                st.error("El nombre es obligatorio.")
+            else:
+                try:
+                    crud.actualizar_area(db, area_id_sel, nuevo_nombre, nueva_desc)
+                    st.success("✅ Área actualizada correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        if toggling:
+            nuevo_estado = crud.toggle_activo_area(db, area_id_sel)
+            label = "activada ✅" if nuevo_estado else "desactivada ⛔"
+            st.info(f"Área **{area_obj.nombre}** {label}.")
             st.rerun()
 
 
@@ -112,15 +135,12 @@ def _tab_equipos(db):
     with st.expander("➕ Registrar Nuevo Equipo", expanded=False):
         with st.form("form_equipo"):
             area_sel = st.selectbox("Área *", list(area_opts.keys()))
-
             col1, col2 = st.columns(2)
             nombre = col1.text_input("Nombre del equipo *",  placeholder="ej. Analizador Hematológico")
             marca  = col2.text_input("Marca / Fabricante *", placeholder="ej. Sysmex, Beckman Coulter, Roche")
-
             col3, col4 = st.columns(2)
             modelo = col3.text_input("Modelo", placeholder="ej. XN-1000")
             serie  = col4.text_input("N° de serie", placeholder="ej. SN-2024-001")
-
             submitted = st.form_submit_button("💾 Guardar Equipo", type="primary", use_container_width=True)
             if submitted:
                 if not nombre.strip():
@@ -135,6 +155,7 @@ def _tab_equipos(db):
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
 
+    # ── Lista de equipos ──
     st.markdown("**Filtrar por área:**")
     area_filtro = st.selectbox("", ["Todas las áreas"] + list(area_opts.keys()),
                                key="filtro_eq", label_visibility="collapsed")
@@ -157,15 +178,60 @@ def _tab_equipos(db):
     } for e in equipos])
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    activos = [e for e in equipos if e.activo]
-    if activos:
-        st.markdown("---")
-        eq_opts = {f"{e.area.nombre} › {e.nombre} ({e.marca or '—'})": e.id for e in activos}
-        col1, col2 = st.columns([3, 1])
-        sel = col1.selectbox("Equipo a desactivar:", list(eq_opts.keys()), key="del_eq", label_visibility="collapsed")
-        if col2.button("⛔ Desactivar", key="btn_del_eq", use_container_width=True):
-            crud.desactivar_equipo(db, eq_opts[sel])
-            st.warning(f"Equipo desactivado.")
+    # ── Editar / Cambiar estado ──
+    st.markdown("---")
+    _section_title("✏️ Editar o Cambiar Estado")
+
+    # Cargar todos los equipos sin filtro para la gestión
+    todos_equipos = crud.listar_equipos(db, solo_activos=False)
+    eq_opts_all = {
+        f"{'✅' if e.activo else '⛔'} {e.area.nombre} › {e.nombre} ({e.marca or '—'})": e.id
+        for e in todos_equipos
+    }
+    sel_eq = st.selectbox("Seleccione el equipo:", list(eq_opts_all.keys()),
+                          key="sel_eq_edit", label_visibility="collapsed")
+    eq_id_sel = eq_opts_all[sel_eq]
+    eq_obj = next(e for e in todos_equipos if e.id == eq_id_sel)
+
+    with st.form("form_edit_equipo"):
+        # Encontrar el índice del área actual en area_opts
+        area_names = list(area_opts.keys())
+        try:
+            area_idx = list(area_opts.values()).index(eq_obj.area_id)
+        except ValueError:
+            area_idx = 0
+
+        area_edit = st.selectbox("Área *", area_names, index=area_idx)
+        col1, col2 = st.columns(2)
+        nuevo_nombre = col1.text_input("Nombre del equipo *", value=eq_obj.nombre)
+        nueva_marca  = col2.text_input("Marca / Fabricante",  value=eq_obj.marca or "")
+        col3, col4 = st.columns(2)
+        nuevo_modelo = col3.text_input("Modelo",    value=eq_obj.modelo or "")
+        nueva_serie  = col4.text_input("N° Serie",  value=eq_obj.numero_serie or "")
+
+        estado_label = "✅ Activar" if not eq_obj.activo else "⛔ Desactivar"
+        col_s, col_t = st.columns(2)
+        guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
+        toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+
+        if guardar:
+            if not nuevo_nombre.strip():
+                st.error("El nombre del equipo es obligatorio.")
+            else:
+                try:
+                    crud.actualizar_equipo(
+                        db, eq_id_sel, area_opts[area_edit],
+                        nuevo_nombre, nueva_marca, nuevo_modelo, nueva_serie
+                    )
+                    st.success("✅ Equipo actualizado correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        if toggling:
+            nuevo_estado = crud.toggle_activo_equipo(db, eq_id_sel)
+            label = "activado ✅" if nuevo_estado else "desactivado ⛔"
+            st.info(f"Equipo **{eq_obj.nombre}** {label}.")
             st.rerun()
 
 
@@ -210,15 +276,47 @@ def _tab_personal(db):
     } for p in personal])
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    activos = [p for p in personal if p.activo]
-    if activos:
-        st.markdown("---")
-        pers_opts = {f"{p.apellido}, {p.nombre} — {p.cargo or 'sin cargo'}": p.id for p in activos}
-        col1, col2 = st.columns([3, 1])
-        sel = col1.selectbox("Personal a desactivar:", list(pers_opts.keys()), key="del_pers", label_visibility="collapsed")
-        if col2.button("⛔ Desactivar", key="btn_del_pers", use_container_width=True):
-            crud.desactivar_personal(db, pers_opts[sel])
-            st.warning("Personal desactivado.")
+    # ── Editar / Cambiar estado ──
+    st.markdown("---")
+    _section_title("✏️ Editar o Cambiar Estado")
+    pers_opts_all = {
+        f"{'✅' if p.activo else '⛔'} {p.apellido}, {p.nombre} — {p.cargo or 'sin cargo'}": p.id
+        for p in personal
+    }
+    sel_p = st.selectbox("Seleccione el personal:", list(pers_opts_all.keys()),
+                         key="sel_pers_edit", label_visibility="collapsed")
+    pers_id_sel = pers_opts_all[sel_p]
+    pers_obj = next(p for p in personal if p.id == pers_id_sel)
+
+    with st.form("form_edit_personal"):
+        col1, col2 = st.columns(2)
+        nuevo_nombre   = col1.text_input("Nombre(s) *",        value=pers_obj.nombre)
+        nuevo_apellido = col2.text_input("Apellido(s) *",      value=pers_obj.apellido)
+        nuevo_codigo   = col1.text_input("Código / Matrícula", value=pers_obj.codigo or "")
+        nuevo_cargo    = col2.text_input("Cargo / Función",    value=pers_obj.cargo or "")
+
+        estado_label = "✅ Activar" if not pers_obj.activo else "⛔ Desactivar"
+        col_s, col_t = st.columns(2)
+        guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
+        toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+
+        if guardar:
+            if not nuevo_nombre.strip() or not nuevo_apellido.strip():
+                st.error("El nombre y apellido son obligatorios.")
+            else:
+                try:
+                    crud.actualizar_personal(
+                        db, pers_id_sel, nuevo_nombre, nuevo_apellido, nuevo_codigo, nuevo_cargo
+                    )
+                    st.success("✅ Personal actualizado correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        if toggling:
+            nuevo_estado = crud.toggle_activo_personal(db, pers_id_sel)
+            label = "activado ✅" if nuevo_estado else "desactivado ⛔"
+            st.info(f"**{pers_obj.apellido}, {pers_obj.nombre}** {label}.")
             st.rerun()
 
 
@@ -278,6 +376,26 @@ def _tab_analitos(db):
         "Estado": "✅" if m.activo else "⛔",
     } for m in materiales])
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # ── Activar / Desactivar analito ──
+    if materiales:
+        st.markdown("---")
+        _section_title("🔄 Cambiar Estado de Analito")
+        mat_opts_all = {
+            f"{'✅' if m.activo else '⛔'} {m.equipo.nombre} › {m.analito}": m.id
+            for m in crud.listar_materiales(db, solo_activos=False)
+        }
+        sel_mat = st.selectbox("Seleccione el analito:", list(mat_opts_all.keys()),
+                               key="sel_mat_toggle", label_visibility="collapsed")
+        mat_id_sel = mat_opts_all[sel_mat]
+        mat_obj = next(m for m in crud.listar_materiales(db, solo_activos=False) if m.id == mat_id_sel)
+        estado_label = "✅ Activar" if not mat_obj.activo else "⛔ Desactivar"
+        if st.button(estado_label, key="btn_toggle_mat"):
+            mat_obj.activo = not mat_obj.activo
+            db.commit()
+            label = "activado ✅" if mat_obj.activo else "desactivado ⛔"
+            st.info(f"Analito **{mat_obj.analito}** {label}.")
+            st.rerun()
 
 
 # ─── LOTES ───────────────────────────────────────────────────────────────────

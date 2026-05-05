@@ -35,6 +35,25 @@ def crear_area(db: Session, nombre: str, descripcion: str = "") -> Area:
     return area
 
 
+def actualizar_area(db: Session, area_id: int, nombre: str, descripcion: str = "") -> Optional[Area]:
+    area = db.get(Area, area_id)
+    if area:
+        area.nombre = nombre.strip()
+        area.descripcion = descripcion.strip()
+        db.commit()
+        db.refresh(area)
+    return area
+
+
+def toggle_activo_area(db: Session, area_id: int) -> bool:
+    area = db.get(Area, area_id)
+    if area:
+        area.activo = not area.activo
+        db.commit()
+        return area.activo
+    return False
+
+
 def desactivar_area(db: Session, area_id: int) -> bool:
     area = db.get(Area, area_id)
     if area:
@@ -71,6 +90,28 @@ def crear_equipo(db: Session, area_id: int, nombre: str, marca: str = "", modelo
     return equipo
 
 
+def actualizar_equipo(db: Session, equipo_id: int, area_id: int, nombre: str, marca: str = "", modelo: str = "", numero_serie: str = "") -> Optional[Equipo]:
+    equipo = db.get(Equipo, equipo_id)
+    if equipo:
+        equipo.area_id = area_id
+        equipo.nombre = nombre.strip()
+        equipo.marca = marca.strip()
+        equipo.modelo = modelo.strip()
+        equipo.numero_serie = numero_serie.strip()
+        db.commit()
+        db.refresh(equipo)
+    return equipo
+
+
+def toggle_activo_equipo(db: Session, equipo_id: int) -> bool:
+    equipo = db.get(Equipo, equipo_id)
+    if equipo:
+        equipo.activo = not equipo.activo
+        db.commit()
+        return equipo.activo
+    return False
+
+
 def desactivar_equipo(db: Session, equipo_id: int) -> bool:
     equipo = db.get(Equipo, equipo_id)
     if equipo:
@@ -102,6 +143,27 @@ def crear_personal(db: Session, nombre: str, apellido: str, codigo: str = "", ca
     db.commit()
     db.refresh(p)
     return p
+
+
+def actualizar_personal(db: Session, personal_id: int, nombre: str, apellido: str, codigo: str = "", cargo: str = "") -> Optional[Personal]:
+    p = db.get(Personal, personal_id)
+    if p:
+        p.nombre = nombre.strip()
+        p.apellido = apellido.strip()
+        p.codigo = codigo.strip() or None
+        p.cargo = cargo.strip()
+        db.commit()
+        db.refresh(p)
+    return p
+
+
+def toggle_activo_personal(db: Session, personal_id: int) -> bool:
+    p = db.get(Personal, personal_id)
+    if p:
+        p.activo = not p.activo
+        db.commit()
+        return p.activo
+    return False
 
 
 def desactivar_personal(db: Session, personal_id: int) -> bool:
