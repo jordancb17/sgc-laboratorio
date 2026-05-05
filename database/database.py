@@ -63,8 +63,27 @@ SessionLocal = sessionmaker(engine, autoflush=False, autocommit=False)
 def init_db():
     from .models import Base
     Base.metadata.create_all(engine)
-    if not IS_POSTGRES:
+    if IS_POSTGRES:
+        _migrate_postgres()
+    else:
         _migrate_sqlite()
+
+
+def _migrate_postgres():
+    """Agrega columnas nuevas a tablas existentes en PostgreSQL (idempotente).
+    Usa engine.begin() para auto-commit/rollback por cada sentencia DDL.
+    """
+    migraciones = [
+        "ALTER TABLE equipos ADD COLUMN IF NOT EXISTS marca VARCHAR(100)",
+        "ALTER TABLE controles_diarios ADD COLUMN IF NOT EXISTS turno VARCHAR(20)",
+        "ALTER TABLE controles_diarios ADD COLUMN IF NOT EXISTS es_retroactivo BOOLEAN DEFAULT FALSE",
+    ]
+    for sql in migraciones:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(sql))
+        except Exception:
+            pass
 
 
 def _migrate_sqlite():

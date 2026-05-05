@@ -123,7 +123,7 @@ def _tab_registrar(db):
 
     # Mostrar info del control seleccionado
     if ctrl_id:
-        ctrl = db.query(__import__('database.models', fromlist=['ControlDiario']).ControlDiario).filter_by(id=int(ctrl_id)).first()
+        ctrl = db.get(__import__('database.models', fromlist=['ControlDiario']).ControlDiario, int(ctrl_id))
         if ctrl:
             mat = ctrl.material
             st.html(

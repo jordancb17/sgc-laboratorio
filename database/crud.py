@@ -1,11 +1,12 @@
 """
 Operaciones CRUD para todos los modelos del sistema.
+Usa SQLAlchemy 2.x nativo: select() + db.scalars() / db.get()
 """
 
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 from typing import Optional
-from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import and_
+from sqlalchemy.orm import Session
+from sqlalchemy import select, and_, exists
 
 from .models import (
     Area, Equipo, Personal, MaterialControl, Lote, NivelLote,
@@ -20,10 +21,10 @@ from modules.westgard import evaluar_westgard
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_areas(db: Session, solo_activos: bool = True) -> list[Area]:
-    q = db.query(Area)
+    stmt = select(Area)
     if solo_activos:
-        q = q.filter(Area.activo == True)
-    return q.order_by(Area.nombre).all()
+        stmt = stmt.where(Area.activo == True)
+    return list(db.scalars(stmt.order_by(Area.nombre)))
 
 
 def crear_area(db: Session, nombre: str, descripcion: str = "") -> Area:
@@ -35,7 +36,7 @@ def crear_area(db: Session, nombre: str, descripcion: str = "") -> Area:
 
 
 def desactivar_area(db: Session, area_id: int) -> bool:
-    area = db.query(Area).filter(Area.id == area_id).first()
+    area = db.get(Area, area_id)
     if area:
         area.activo = False
         db.commit()
@@ -48,12 +49,12 @@ def desactivar_area(db: Session, area_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_equipos(db: Session, area_id: Optional[int] = None, solo_activos: bool = True) -> list[Equipo]:
-    q = db.query(Equipo).options(selectinload(Equipo.area))
+    stmt = select(Equipo)
     if area_id:
-        q = q.filter(Equipo.area_id == area_id)
+        stmt = stmt.where(Equipo.area_id == area_id)
     if solo_activos:
-        q = q.filter(Equipo.activo == True)
-    return q.order_by(Equipo.nombre).all()
+        stmt = stmt.where(Equipo.activo == True)
+    return list(db.scalars(stmt.order_by(Equipo.nombre)))
 
 
 def crear_equipo(db: Session, area_id: int, nombre: str, marca: str = "", modelo: str = "", numero_serie: str = "") -> Equipo:
@@ -71,7 +72,7 @@ def crear_equipo(db: Session, area_id: int, nombre: str, marca: str = "", modelo
 
 
 def desactivar_equipo(db: Session, equipo_id: int) -> bool:
-    equipo = db.query(Equipo).filter(Equipo.id == equipo_id).first()
+    equipo = db.get(Equipo, equipo_id)
     if equipo:
         equipo.activo = False
         db.commit()
@@ -84,10 +85,10 @@ def desactivar_equipo(db: Session, equipo_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_personal(db: Session, solo_activos: bool = True) -> list[Personal]:
-    q = db.query(Personal)
+    stmt = select(Personal)
     if solo_activos:
-        q = q.filter(Personal.activo == True)
-    return q.order_by(Personal.apellido, Personal.nombre).all()
+        stmt = stmt.where(Personal.activo == True)
+    return list(db.scalars(stmt.order_by(Personal.apellido, Personal.nombre)))
 
 
 def crear_personal(db: Session, nombre: str, apellido: str, codigo: str = "", cargo: str = "") -> Personal:
@@ -104,7 +105,7 @@ def crear_personal(db: Session, nombre: str, apellido: str, codigo: str = "", ca
 
 
 def desactivar_personal(db: Session, personal_id: int) -> bool:
-    p = db.query(Personal).filter(Personal.id == personal_id).first()
+    p = db.get(Personal, personal_id)
     if p:
         p.activo = False
         db.commit()
@@ -117,14 +118,12 @@ def desactivar_personal(db: Session, personal_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_materiales(db: Session, equipo_id: Optional[int] = None, solo_activos: bool = True) -> list[MaterialControl]:
-    q = db.query(MaterialControl).options(
-        selectinload(MaterialControl.equipo).selectinload(Equipo.area)
-    )
+    stmt = select(MaterialControl)
     if equipo_id:
-        q = q.filter(MaterialControl.equipo_id == equipo_id)
+        stmt = stmt.where(MaterialControl.equipo_id == equipo_id)
     if solo_activos:
-        q = q.filter(MaterialControl.activo == True)
-    return q.order_by(MaterialControl.analito).all()
+        stmt = stmt.where(MaterialControl.activo == True)
+    return list(db.scalars(stmt.order_by(MaterialControl.analito)))
 
 
 def crear_material(
@@ -149,7 +148,7 @@ def crear_material(
 
 
 def desactivar_material(db: Session, material_id: int) -> bool:
-    m = db.query(MaterialControl).filter(MaterialControl.id == material_id).first()
+    m = db.get(MaterialControl, material_id)
     if m:
         m.activo = False
         db.commit()
@@ -162,10 +161,10 @@ def desactivar_material(db: Session, material_id: int) -> bool:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_lotes(db: Session, material_id: int, solo_activos: bool = True) -> list[Lote]:
-    q = db.query(Lote).filter(Lote.material_id == material_id)
+    stmt = select(Lote).where(Lote.material_id == material_id)
     if solo_activos:
-        q = q.filter(Lote.activo == True)
-    return q.order_by(Lote.fecha_vencimiento.desc()).all()
+        stmt = stmt.where(Lote.activo == True)
+    return list(db.scalars(stmt.order_by(Lote.fecha_vencimiento.desc())))
 
 
 def crear_lote(
@@ -200,36 +199,39 @@ def crear_lote(
 def get_lote_activo(db: Session, material_id: int) -> Optional[Lote]:
     """Devuelve el lote activo no vencido más reciente para un material."""
     hoy = date.today()
-    return (
-        db.query(Lote)
-        .filter(
+    stmt = (
+        select(Lote)
+        .where(
             Lote.material_id == material_id,
             Lote.activo == True,
             Lote.fecha_vencimiento >= hoy,
         )
         .order_by(Lote.fecha_vencimiento.desc())
-        .first()
     )
+    return db.scalars(stmt).first()
 
 
 def get_nivel_lote(db: Session, lote_id: int, nivel: int) -> Optional[NivelLote]:
-    return (
-        db.query(NivelLote)
-        .filter(NivelLote.lote_id == lote_id, NivelLote.nivel == nivel)
-        .first()
+    stmt = select(NivelLote).where(
+        NivelLote.lote_id == lote_id,
+        NivelLote.nivel == nivel,
     )
+    return db.scalars(stmt).first()
 
 
 def lotes_por_vencer(db: Session, dias: int = 30) -> list[Lote]:
-    from datetime import timedelta
     hoy = date.today()
     limite = hoy + timedelta(days=dias)
-    return (
-        db.query(Lote)
-        .filter(Lote.activo == True, Lote.fecha_vencimiento <= limite, Lote.fecha_vencimiento >= hoy)
+    stmt = (
+        select(Lote)
+        .where(
+            Lote.activo == True,
+            Lote.fecha_vencimiento <= limite,
+            Lote.fecha_vencimiento >= hoy,
+        )
         .order_by(Lote.fecha_vencimiento)
-        .all()
     )
+    return list(db.scalars(stmt))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -243,13 +245,11 @@ def historial_zscores(
     excluir_id: Optional[int] = None,
 ) -> list[float]:
     """Devuelve los últimos z-scores del mismo nivel (más reciente primero)."""
-    q = (
-        db.query(ControlDiario)
-        .filter(ControlDiario.nivel_lote_id == nivel_lote_id)
-    )
+    stmt = select(ControlDiario).where(ControlDiario.nivel_lote_id == nivel_lote_id)
     if excluir_id:
-        q = q.filter(ControlDiario.id != excluir_id)
-    controles = q.order_by(ControlDiario.fecha.desc(), ControlDiario.hora.desc()).limit(limite).all()
+        stmt = stmt.where(ControlDiario.id != excluir_id)
+    stmt = stmt.order_by(ControlDiario.fecha.desc(), ControlDiario.hora.desc()).limit(limite)
+    controles = db.scalars(stmt).all()
     return [c.zscore for c in controles if c.zscore is not None]
 
 
@@ -262,17 +262,17 @@ def zscores_mismo_run(
     lote_id: int,
 ) -> list[float]:
     """Z-scores de otros niveles del mismo equipo/fecha para R-4s inter-nivel."""
-    controles = (
-        db.query(ControlDiario)
+    stmt = (
+        select(ControlDiario)
         .join(NivelLote)
-        .filter(
+        .where(
             ControlDiario.material_id == material_id,
             ControlDiario.fecha == fecha,
             ControlDiario.lote_id == lote_id,
             NivelLote.nivel != nivel_excluido,
         )
-        .all()
     )
+    controles = db.scalars(stmt).all()
     return [c.zscore for c in controles if c.zscore is not None]
 
 
@@ -283,16 +283,13 @@ def existe_control_diario(
     fecha: date,
     hora: time,
 ) -> bool:
-    return (
-        db.query(ControlDiario)
-        .filter(
-            ControlDiario.material_id == material_id,
-            ControlDiario.nivel_lote_id == nivel_lote_id,
-            ControlDiario.fecha == fecha,
-            ControlDiario.hora == hora,
-        )
-        .first()
-    ) is not None
+    stmt = select(ControlDiario).where(
+        ControlDiario.material_id == material_id,
+        ControlDiario.nivel_lote_id == nivel_lote_id,
+        ControlDiario.fecha == fecha,
+        ControlDiario.hora == hora,
+    )
+    return db.scalars(stmt).first() is not None
 
 
 def registrar_control_diario(
@@ -320,7 +317,7 @@ def registrar_control_diario(
     if existe_control_diario(db, material_id, nivel_lote_id, fecha, hora):
         return None, "Ya existe un control registrado para este analito/nivel en esa fecha y hora exactas."
 
-    nivel_lote = db.query(NivelLote).filter(NivelLote.id == nivel_lote_id).first()
+    nivel_lote = db.get(NivelLote, nivel_lote_id)
     if not nivel_lote:
         return None, "Nivel de lote no encontrado."
 
@@ -365,27 +362,22 @@ def listar_controles_diarios(
     nivel: Optional[int] = None,
     personal_id: Optional[int] = None,
 ) -> list[ControlDiario]:
-    q = db.query(ControlDiario).options(
-        selectinload(ControlDiario.nivel_lote),
-        selectinload(ControlDiario.personal),
-        selectinload(ControlDiario.accion_correctiva),
-        selectinload(ControlDiario.material).selectinload(MaterialControl.equipo).selectinload(Equipo.area),
-    )
+    stmt = select(ControlDiario)
     if material_id:
-        q = q.filter(ControlDiario.material_id == material_id)
+        stmt = stmt.where(ControlDiario.material_id == material_id)
     if fecha_desde:
-        q = q.filter(ControlDiario.fecha >= fecha_desde)
+        stmt = stmt.where(ControlDiario.fecha >= fecha_desde)
     if fecha_hasta:
-        q = q.filter(ControlDiario.fecha <= fecha_hasta)
+        stmt = stmt.where(ControlDiario.fecha <= fecha_hasta)
     if nivel is not None:
-        q = q.join(NivelLote).filter(NivelLote.nivel == nivel)
+        stmt = stmt.join(NivelLote).where(NivelLote.nivel == nivel)
     if personal_id:
-        q = q.filter(ControlDiario.personal_id == personal_id)
-    return q.order_by(ControlDiario.fecha.asc(), ControlDiario.hora.asc()).all()
+        stmt = stmt.where(ControlDiario.personal_id == personal_id)
+    return list(db.scalars(stmt.order_by(ControlDiario.fecha.asc(), ControlDiario.hora.asc())))
 
 
 def eliminar_control_diario(db: Session, control_id: int) -> bool:
-    c = db.query(ControlDiario).filter(ControlDiario.id == control_id).first()
+    c = db.get(ControlDiario, control_id)
     if c:
         db.delete(c)
         db.commit()
@@ -421,18 +413,15 @@ def registrar_control_externo(
     comentario: str = "",
 ) -> tuple[ControlExterno, str]:
     # Verificar duplicado
-    existe = (
-        db.query(ControlExterno)
-        .filter(
-            ControlExterno.material_id == material_id,
-            ControlExterno.proveedor_externo == proveedor_externo,
-            ControlExterno.periodo == periodo,
-            ControlExterno.nivel == nivel,
-        )
-        .first()
+    stmt = select(ControlExterno).where(
+        ControlExterno.material_id == material_id,
+        ControlExterno.proveedor_externo == proveedor_externo,
+        ControlExterno.periodo == periodo,
+        ControlExterno.nivel == nivel,
     )
+    existe = db.scalars(stmt).first()
     if existe:
-        return None, f"Ya existe un control externo para ese analito, proveedor, período y nivel."
+        return None, "Ya existe un control externo para ese analito, proveedor, período y nivel."
 
     zscore = None
     resultado = "SIN EVALUAR"
@@ -466,12 +455,12 @@ def listar_controles_externos(
     material_id: Optional[int] = None,
     proveedor: Optional[str] = None,
 ) -> list[ControlExterno]:
-    q = db.query(ControlExterno)
+    stmt = select(ControlExterno)
     if material_id:
-        q = q.filter(ControlExterno.material_id == material_id)
+        stmt = stmt.where(ControlExterno.material_id == material_id)
     if proveedor:
-        q = q.filter(ControlExterno.proveedor_externo == proveedor)
-    return q.order_by(ControlExterno.periodo.asc()).all()
+        stmt = stmt.where(ControlExterno.proveedor_externo == proveedor)
+    return list(db.scalars(stmt.order_by(ControlExterno.periodo.asc())))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -515,15 +504,12 @@ def agregar_medicion_ep15(
     valor: float,
     fecha: Optional[date] = None,
 ) -> tuple[MedicionEP15, str]:
-    existe = (
-        db.query(MedicionEP15)
-        .filter(
-            MedicionEP15.sesion_id == sesion_id,
-            MedicionEP15.dia == dia,
-            MedicionEP15.replicado == replicado,
-        )
-        .first()
+    stmt = select(MedicionEP15).where(
+        MedicionEP15.sesion_id == sesion_id,
+        MedicionEP15.dia == dia,
+        MedicionEP15.replicado == replicado,
     )
+    existe = db.scalars(stmt).first()
     if existe:
         existe.valor = valor
         existe.fecha = fecha
@@ -542,16 +528,16 @@ def calcular_y_guardar_ep15(db: Session, sesion_id: int) -> tuple[SesionEP15, st
     """Calcula los estadísticos EP15-A3 y los guarda en la sesión."""
     from modules.ep15 import calcular_ep15
 
-    sesion = db.query(SesionEP15).filter(SesionEP15.id == sesion_id).first()
+    sesion = db.get(SesionEP15, sesion_id)
     if not sesion:
         return None, "Sesión no encontrada."
 
-    mediciones = (
-        db.query(MedicionEP15)
-        .filter(MedicionEP15.sesion_id == sesion_id)
+    stmt = (
+        select(MedicionEP15)
+        .where(MedicionEP15.sesion_id == sesion_id)
         .order_by(MedicionEP15.dia, MedicionEP15.replicado)
-        .all()
     )
+    mediciones = db.scalars(stmt).all()
 
     # Construir matriz [dia][replicado]
     datos: dict[int, dict[int, float]] = {}
@@ -595,10 +581,10 @@ def calcular_y_guardar_ep15(db: Session, sesion_id: int) -> tuple[SesionEP15, st
 
 
 def listar_sesiones_ep15(db: Session, material_id: Optional[int] = None) -> list[SesionEP15]:
-    q = db.query(SesionEP15)
+    stmt = select(SesionEP15)
     if material_id:
-        q = q.filter(SesionEP15.material_id == material_id)
-    return q.order_by(SesionEP15.registrado_en.desc()).all()
+        stmt = stmt.where(SesionEP15.material_id == material_id)
+    return list(db.scalars(stmt.order_by(SesionEP15.registrado_en.desc())))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -617,7 +603,8 @@ def registrar_accion_correctiva(
     requiere_repeticion: bool = False,
     observaciones: str = "",
 ) -> tuple[AccionCorrectiva, str]:
-    existe = db.query(AccionCorrectiva).filter(AccionCorrectiva.control_id == control_id).first()
+    stmt = select(AccionCorrectiva).where(AccionCorrectiva.control_id == control_id)
+    existe = db.scalars(stmt).first()
     if existe:
         # Actualizar en lugar de duplicar
         existe.causa_probable = causa_probable
@@ -655,32 +642,32 @@ def listar_acciones_correctivas(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[AccionCorrectiva]:
-    q = db.query(AccionCorrectiva)
+    stmt = select(AccionCorrectiva)
     if resultado:
-        q = q.filter(AccionCorrectiva.resultado == resultado)
+        stmt = stmt.where(AccionCorrectiva.resultado == resultado)
     if fecha_desde:
-        q = q.filter(AccionCorrectiva.fecha >= fecha_desde)
+        stmt = stmt.where(AccionCorrectiva.fecha >= fecha_desde)
     if fecha_hasta:
-        q = q.filter(AccionCorrectiva.fecha <= fecha_hasta)
-    return q.order_by(AccionCorrectiva.fecha.desc(), AccionCorrectiva.hora.desc()).all()
+        stmt = stmt.where(AccionCorrectiva.fecha <= fecha_hasta)
+    return list(db.scalars(stmt.order_by(AccionCorrectiva.fecha.desc(), AccionCorrectiva.hora.desc())))
 
 
 def get_accion_correctiva_por_control(db: Session, control_id: int) -> Optional[AccionCorrectiva]:
-    return db.query(AccionCorrectiva).filter(AccionCorrectiva.control_id == control_id).first()
+    stmt = select(AccionCorrectiva).where(AccionCorrectiva.control_id == control_id)
+    return db.scalars(stmt).first()
 
 
 def controles_sin_accion_correctiva(db: Session) -> list[ControlDiario]:
     """Devuelve controles rechazados que aún no tienen acción correctiva registrada."""
-    from sqlalchemy import not_, exists
-    return (
-        db.query(ControlDiario)
-        .filter(
+    stmt = (
+        select(ControlDiario)
+        .where(
             ControlDiario.resultado == "RECHAZO",
             ~exists().where(AccionCorrectiva.control_id == ControlDiario.id),
         )
         .order_by(ControlDiario.fecha.desc())
-        .all()
     )
+    return list(db.scalars(stmt))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -694,7 +681,8 @@ def guardar_indice_calidad(
     sesgo_porcentual: float = 0.0,
     fuente_tea: str = "",
 ) -> IndiceCalidad:
-    ic = db.query(IndiceCalidad).filter(IndiceCalidad.material_id == material_id).first()
+    stmt = select(IndiceCalidad).where(IndiceCalidad.material_id == material_id)
+    ic = db.scalars(stmt).first()
     if ic:
         ic.tea = tea
         ic.sesgo_porcentual = sesgo_porcentual
@@ -713,11 +701,12 @@ def guardar_indice_calidad(
 
 
 def obtener_indice_calidad(db: Session, material_id: int) -> Optional[IndiceCalidad]:
-    return db.query(IndiceCalidad).filter(IndiceCalidad.material_id == material_id).first()
+    stmt = select(IndiceCalidad).where(IndiceCalidad.material_id == material_id)
+    return db.scalars(stmt).first()
 
 
 def listar_indices_calidad(db: Session) -> list[IndiceCalidad]:
-    return db.query(IndiceCalidad).all()
+    return list(db.scalars(select(IndiceCalidad)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -757,29 +746,25 @@ def listar_calibraciones(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[Calibracion]:
-    q = db.query(Calibracion).options(
-        selectinload(Calibracion.equipo).selectinload(Equipo.area),
-        selectinload(Calibracion.personal),
-    )
+    stmt = select(Calibracion)
     if equipo_id:
-        q = q.filter(Calibracion.equipo_id == equipo_id)
+        stmt = stmt.where(Calibracion.equipo_id == equipo_id)
     if fecha_desde:
-        q = q.filter(Calibracion.fecha >= fecha_desde)
+        stmt = stmt.where(Calibracion.fecha >= fecha_desde)
     if fecha_hasta:
-        q = q.filter(Calibracion.fecha <= fecha_hasta)
-    return q.order_by(Calibracion.fecha.desc()).all()
+        stmt = stmt.where(Calibracion.fecha <= fecha_hasta)
+    return list(db.scalars(stmt.order_by(Calibracion.fecha.desc())))
 
 
 def proximas_calibraciones(db: Session, dias: int = 30) -> list[Calibracion]:
     desde = date.today()
-    hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
-    return (
-        db.query(Calibracion)
-        .options(selectinload(Calibracion.equipo).selectinload(Equipo.area))
-        .filter(Calibracion.proxima_calibracion.between(desde, hasta))
+    hasta = desde + timedelta(days=dias)
+    stmt = (
+        select(Calibracion)
+        .where(Calibracion.proxima_calibracion.between(desde, hasta))
         .order_by(Calibracion.proxima_calibracion.asc())
-        .all()
     )
+    return list(db.scalars(stmt))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -817,29 +802,25 @@ def listar_mantenimientos(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[Mantenimiento]:
-    q = db.query(Mantenimiento).options(
-        selectinload(Mantenimiento.equipo).selectinload(Equipo.area),
-        selectinload(Mantenimiento.personal),
-    )
+    stmt = select(Mantenimiento)
     if equipo_id:
-        q = q.filter(Mantenimiento.equipo_id == equipo_id)
+        stmt = stmt.where(Mantenimiento.equipo_id == equipo_id)
     if fecha_desde:
-        q = q.filter(Mantenimiento.fecha >= fecha_desde)
+        stmt = stmt.where(Mantenimiento.fecha >= fecha_desde)
     if fecha_hasta:
-        q = q.filter(Mantenimiento.fecha <= fecha_hasta)
-    return q.order_by(Mantenimiento.fecha.desc()).all()
+        stmt = stmt.where(Mantenimiento.fecha <= fecha_hasta)
+    return list(db.scalars(stmt.order_by(Mantenimiento.fecha.desc())))
 
 
 def proximos_mantenimientos(db: Session, dias: int = 30) -> list[Mantenimiento]:
     desde = date.today()
-    hasta = date.today().__class__.fromordinal(date.today().toordinal() + dias)
-    return (
-        db.query(Mantenimiento)
-        .options(selectinload(Mantenimiento.equipo).selectinload(Equipo.area))
-        .filter(Mantenimiento.proxima_fecha.between(desde, hasta))
+    hasta = desde + timedelta(days=dias)
+    stmt = (
+        select(Mantenimiento)
+        .where(Mantenimiento.proxima_fecha.between(desde, hasta))
         .order_by(Mantenimiento.proxima_fecha.asc())
-        .all()
     )
+    return list(db.scalars(stmt))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -863,16 +844,16 @@ def insertar_controles_masivo(
 
     for i, reg in enumerate(registros):
         try:
-            material_id  = reg["material_id"]
-            nivel_lote_id= reg["nivel_lote_id"]
-            fecha        = reg["fecha"]
-            hora         = reg["hora"]
+            material_id   = reg["material_id"]
+            nivel_lote_id = reg["nivel_lote_id"]
+            fecha         = reg["fecha"]
+            hora          = reg["hora"]
 
             if existe_control_diario(db, material_id, nivel_lote_id, fecha, hora):
                 omitidos += 1
                 continue
 
-            nivel_lote = db.query(NivelLote).filter(NivelLote.id == nivel_lote_id).first()
+            nivel_lote = db.get(NivelLote, nivel_lote_id)
             if not nivel_lote:
                 errores.append(f"Fila {i+1}: nivel de lote no encontrado.")
                 continue
