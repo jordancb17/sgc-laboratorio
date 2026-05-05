@@ -57,12 +57,12 @@ try:
 except Exception:
     engine, IS_POSTGRES = _build_engine()
 
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+SessionLocal = sessionmaker(engine, autoflush=False, autocommit=False)
 
 
 def init_db():
     from .models import Base
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(engine)
     if not IS_POSTGRES:
         _migrate_sqlite()
 
