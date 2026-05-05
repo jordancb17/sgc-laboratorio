@@ -63,6 +63,19 @@ def desactivar_area(db: Session, area_id: int) -> bool:
     return False
 
 
+def eliminar_area(db: Session, area_id: int) -> tuple[bool, str]:
+    """Elimina un área sólo si no tiene equipos asociados."""
+    area = db.get(Area, area_id)
+    if not area:
+        return False, "Área no encontrada."
+    equipos = db.scalars(select(Equipo).where(Equipo.area_id == area_id)).all()
+    if equipos:
+        return False, f"No se puede eliminar: el área tiene {len(equipos)} equipo(s) asociado(s). Elimine o reasigne los equipos primero."
+    db.delete(area)
+    db.commit()
+    return True, "Área eliminada correctamente."
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # EQUIPOS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -121,6 +134,19 @@ def desactivar_equipo(db: Session, equipo_id: int) -> bool:
     return False
 
 
+def eliminar_equipo(db: Session, equipo_id: int) -> tuple[bool, str]:
+    """Elimina un equipo sólo si no tiene analitos asociados."""
+    equipo = db.get(Equipo, equipo_id)
+    if not equipo:
+        return False, "Equipo no encontrado."
+    mats = db.scalars(select(MaterialControl).where(MaterialControl.equipo_id == equipo_id)).all()
+    if mats:
+        return False, f"No se puede eliminar: el equipo tiene {len(mats)} analito(s) asociado(s). Elimínelos primero."
+    db.delete(equipo)
+    db.commit()
+    return True, "Equipo eliminado correctamente."
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PERSONAL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -175,6 +201,19 @@ def desactivar_personal(db: Session, personal_id: int) -> bool:
     return False
 
 
+def eliminar_personal(db: Session, personal_id: int) -> tuple[bool, str]:
+    """Elimina personal sólo si no tiene controles registrados."""
+    p = db.get(Personal, personal_id)
+    if not p:
+        return False, "Personal no encontrado."
+    tiene = db.scalars(select(ControlDiario).where(ControlDiario.personal_id == personal_id)).first()
+    if tiene:
+        return False, "No se puede eliminar: tiene controles registrados. Use 'Desactivar' en su lugar."
+    db.delete(p)
+    db.commit()
+    return True, "Personal eliminado correctamente."
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # MATERIALES DE CONTROL (ANALITOS)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -216,6 +255,52 @@ def desactivar_material(db: Session, material_id: int) -> bool:
         db.commit()
         return True
     return False
+
+
+def actualizar_material(
+    db: Session,
+    material_id: int,
+    equipo_id: int,
+    analito: str,
+    proveedor: str,
+    unidad: str = "",
+    nombre_material: str = "",
+) -> Optional[MaterialControl]:
+    m = db.get(MaterialControl, material_id)
+    if m:
+        m.equipo_id = equipo_id
+        m.analito = analito.strip()
+        m.proveedor = proveedor.strip()
+        m.unidad = unidad.strip()
+        m.nombre_material = nombre_material.strip()
+        db.commit()
+        db.refresh(m)
+    return m
+
+
+def toggle_activo_material(db: Session, material_id: int) -> bool:
+    m = db.get(MaterialControl, material_id)
+    if m:
+        m.activo = not m.activo
+        db.commit()
+        return m.activo
+    return False
+
+
+def eliminar_material(db: Session, material_id: int) -> tuple[bool, str]:
+    """Elimina un analito sólo si no tiene lotes ni controles asociados."""
+    m = db.get(MaterialControl, material_id)
+    if not m:
+        return False, "Analito no encontrado."
+    lotes = db.scalars(select(Lote).where(Lote.material_id == material_id)).all()
+    if lotes:
+        return False, f"No se puede eliminar: el analito tiene {len(lotes)} lote(s) asociado(s). Elimínelos primero."
+    controles = db.scalars(select(ControlDiario).where(ControlDiario.material_id == material_id)).first()
+    if controles:
+        return False, "No se puede eliminar: el analito tiene controles registrados. Use 'Desactivar' en su lugar."
+    db.delete(m)
+    db.commit()
+    return True, "Analito eliminado correctamente."
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

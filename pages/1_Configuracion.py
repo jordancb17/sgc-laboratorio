@@ -97,9 +97,10 @@ def _tab_areas(db):
         nuevo_nombre = col1.text_input("Nombre *", value=area_obj.nombre)
         nueva_desc   = col2.text_input("Descripción", value=area_obj.descripcion or "")
         estado_label = "✅ Activar" if not area_obj.activo else "⛔ Desactivar"
-        col_s, col_t = st.columns(2)
+        col_s, col_t, col_d = st.columns([2, 1.3, 1])
         guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
         toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+        del_btn  = col_d.form_submit_button("🗑️ Eliminar", use_container_width=True)
 
         if guardar:
             if not nuevo_nombre.strip():
@@ -116,6 +117,25 @@ def _tab_areas(db):
             nuevo_estado = crud.toggle_activo_area(db, area_id_sel)
             label = "activada ✅" if nuevo_estado else "desactivada ⛔"
             st.info(f"Área **{area_obj.nombre}** {label}.")
+            st.rerun()
+
+        if del_btn:
+            st.session_state["_confirm_del_area"] = area_id_sel
+
+    # Confirmación de eliminación (fuera del form)
+    if st.session_state.get("_confirm_del_area") == area_id_sel:
+        st.warning(f"⚠️ ¿Eliminar permanentemente el área **{area_obj.nombre}**? Esta acción no se puede deshacer.")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Sí, eliminar definitivamente", key="btn_area_del_yes", type="primary", use_container_width=True):
+            ok, msg = crud.eliminar_area(db, area_id_sel)
+            st.session_state.pop("_confirm_del_area", None)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+        if c2.button("❌ Cancelar", key="btn_area_del_no", use_container_width=True):
+            st.session_state.pop("_confirm_del_area", None)
             st.rerun()
 
 
@@ -210,9 +230,10 @@ def _tab_equipos(db):
         nueva_serie  = col4.text_input("N° Serie",  value=eq_obj.numero_serie or "")
 
         estado_label = "✅ Activar" if not eq_obj.activo else "⛔ Desactivar"
-        col_s, col_t = st.columns(2)
+        col_s, col_t, col_d = st.columns([2, 1.3, 1])
         guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
         toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+        del_btn  = col_d.form_submit_button("🗑️ Eliminar", use_container_width=True)
 
         if guardar:
             if not nuevo_nombre.strip():
@@ -232,6 +253,25 @@ def _tab_equipos(db):
             nuevo_estado = crud.toggle_activo_equipo(db, eq_id_sel)
             label = "activado ✅" if nuevo_estado else "desactivado ⛔"
             st.info(f"Equipo **{eq_obj.nombre}** {label}.")
+            st.rerun()
+
+        if del_btn:
+            st.session_state["_confirm_del_eq"] = eq_id_sel
+
+    # Confirmación de eliminación (fuera del form)
+    if st.session_state.get("_confirm_del_eq") == eq_id_sel:
+        st.warning(f"⚠️ ¿Eliminar permanentemente el equipo **{eq_obj.nombre}**? Esta acción no se puede deshacer.")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Sí, eliminar definitivamente", key="btn_eq_del_yes", type="primary", use_container_width=True):
+            ok, msg = crud.eliminar_equipo(db, eq_id_sel)
+            st.session_state.pop("_confirm_del_eq", None)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+        if c2.button("❌ Cancelar", key="btn_eq_del_no", use_container_width=True):
+            st.session_state.pop("_confirm_del_eq", None)
             st.rerun()
 
 
@@ -296,9 +336,10 @@ def _tab_personal(db):
         nuevo_cargo    = col2.text_input("Cargo / Función",    value=pers_obj.cargo or "")
 
         estado_label = "✅ Activar" if not pers_obj.activo else "⛔ Desactivar"
-        col_s, col_t = st.columns(2)
+        col_s, col_t, col_d = st.columns([2, 1.3, 1])
         guardar  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
         toggling = col_t.form_submit_button(estado_label, use_container_width=True)
+        del_btn  = col_d.form_submit_button("🗑️ Eliminar", use_container_width=True)
 
         if guardar:
             if not nuevo_nombre.strip() or not nuevo_apellido.strip():
@@ -317,6 +358,25 @@ def _tab_personal(db):
             nuevo_estado = crud.toggle_activo_personal(db, pers_id_sel)
             label = "activado ✅" if nuevo_estado else "desactivado ⛔"
             st.info(f"**{pers_obj.apellido}, {pers_obj.nombre}** {label}.")
+            st.rerun()
+
+        if del_btn:
+            st.session_state["_confirm_del_pers"] = pers_id_sel
+
+    # Confirmación de eliminación (fuera del form)
+    if st.session_state.get("_confirm_del_pers") == pers_id_sel:
+        st.warning(f"⚠️ ¿Eliminar permanentemente a **{pers_obj.apellido}, {pers_obj.nombre}**? Esta acción no se puede deshacer.")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Sí, eliminar definitivamente", key="btn_pers_del_yes", type="primary", use_container_width=True):
+            ok, msg = crud.eliminar_personal(db, pers_id_sel)
+            st.session_state.pop("_confirm_del_pers", None)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+        if c2.button("❌ Cancelar", key="btn_pers_del_no", use_container_width=True):
+            st.session_state.pop("_confirm_del_pers", None)
             st.rerun()
 
 
@@ -377,24 +437,79 @@ def _tab_analitos(db):
     } for m in materiales])
     st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # ── Activar / Desactivar analito ──
-    if materiales:
-        st.markdown("---")
-        _section_title("🔄 Cambiar Estado de Analito")
-        mat_opts_all = {
-            f"{'✅' if m.activo else '⛔'} {m.equipo.nombre} › {m.analito}": m.id
-            for m in crud.listar_materiales(db, solo_activos=False)
-        }
-        sel_mat = st.selectbox("Seleccione el analito:", list(mat_opts_all.keys()),
-                               key="sel_mat_toggle", label_visibility="collapsed")
-        mat_id_sel = mat_opts_all[sel_mat]
-        mat_obj = next(m for m in crud.listar_materiales(db, solo_activos=False) if m.id == mat_id_sel)
-        estado_label = "✅ Activar" if not mat_obj.activo else "⛔ Desactivar"
-        if st.button(estado_label, key="btn_toggle_mat"):
-            mat_obj.activo = not mat_obj.activo
-            db.commit()
-            label = "activado ✅" if mat_obj.activo else "desactivado ⛔"
+    # ── Editar / Cambiar estado / Eliminar analito ──
+    st.markdown("---")
+    _section_title("✏️ Editar o Cambiar Estado")
+    todos_materiales = crud.listar_materiales(db, solo_activos=False)
+    mat_opts_all = {
+        f"{'✅' if m.activo else '⛔'} {m.equipo.area.nombre} › {m.equipo.nombre} › {m.analito}": m.id
+        for m in todos_materiales
+    }
+    sel_mat = st.selectbox("Seleccione el analito:", list(mat_opts_all.keys()),
+                           key="sel_mat_edit", label_visibility="collapsed")
+    mat_id_sel = mat_opts_all[sel_mat]
+    mat_obj = next(m for m in todos_materiales if m.id == mat_id_sel)
+
+    with st.form("form_edit_analito"):
+        # Selector de equipo
+        todos_equipos_mat = crud.listar_equipos(db, solo_activos=False)
+        eq_opts_mat = {f"{e.area.nombre} › {e.nombre} [{e.marca or '—'}]": e.id for e in todos_equipos_mat}
+        eq_names_mat = list(eq_opts_mat.keys())
+        try:
+            eq_idx_mat = list(eq_opts_mat.values()).index(mat_obj.equipo_id)
+        except ValueError:
+            eq_idx_mat = 0
+        eq_edit_mat = st.selectbox("Equipo / Analizador *", eq_names_mat, index=eq_idx_mat)
+
+        col1, col2 = st.columns(2)
+        nuevo_analito   = col1.text_input("Nombre del analito *", value=mat_obj.analito)
+        nuevo_proveedor = col2.text_input("Proveedor / Marca *",  value=mat_obj.proveedor)
+        nueva_unidad    = col1.text_input("Unidad de medida",     value=mat_obj.unidad or "")
+        nuevo_nom_mat   = col2.text_input("Nombre material control", value=mat_obj.nombre_material or "")
+
+        estado_label_mat = "✅ Activar" if not mat_obj.activo else "⛔ Desactivar"
+        col_s, col_t, col_d = st.columns([2, 1.3, 1])
+        guardar_mat  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
+        toggling_mat = col_t.form_submit_button(estado_label_mat, use_container_width=True)
+        del_btn_mat  = col_d.form_submit_button("🗑️ Eliminar", use_container_width=True)
+
+        if guardar_mat:
+            if not nuevo_analito.strip() or not nuevo_proveedor.strip():
+                st.error("El nombre del analito y el proveedor son obligatorios.")
+            else:
+                try:
+                    crud.actualizar_material(
+                        db, mat_id_sel, eq_opts_mat[eq_edit_mat],
+                        nuevo_analito, nuevo_proveedor, nueva_unidad, nuevo_nom_mat
+                    )
+                    st.success("✅ Analito actualizado correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        if toggling_mat:
+            nuevo_estado_mat = crud.toggle_activo_material(db, mat_id_sel)
+            label = "activado ✅" if nuevo_estado_mat else "desactivado ⛔"
             st.info(f"Analito **{mat_obj.analito}** {label}.")
+            st.rerun()
+
+        if del_btn_mat:
+            st.session_state["_confirm_del_mat"] = mat_id_sel
+
+    # Confirmación de eliminación (fuera del form)
+    if st.session_state.get("_confirm_del_mat") == mat_id_sel:
+        st.warning(f"⚠️ ¿Eliminar permanentemente el analito **{mat_obj.analito}**? Esta acción no se puede deshacer.")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Sí, eliminar definitivamente", key="btn_mat_del_yes", type="primary", use_container_width=True):
+            ok, msg = crud.eliminar_material(db, mat_id_sel)
+            st.session_state.pop("_confirm_del_mat", None)
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+        if c2.button("❌ Cancelar", key="btn_mat_del_no", use_container_width=True):
+            st.session_state.pop("_confirm_del_mat", None)
             st.rerun()
 
 

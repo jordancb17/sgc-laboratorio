@@ -3,48 +3,40 @@ import streamlit as st
 MAIN_CSS = """
 <style>
 /* ══════════════════════════════════════════════════════════════
-   VARIABLES — Light mode (default)
+   VARIABLES — Se alimentan de los CSS vars nativos de Streamlit.
+   --background-color, --secondary-background-color, --text-color
+   y --primary-color los inyecta Streamlit y cambian
+   automáticamente al cambiar el tema (claro/oscuro).
 ══════════════════════════════════════════════════════════════ */
 :root {
-    --bg:           #f0f4f8;
-    --surface:      #ffffff;
-    --surface-2:    #f8fafc;
-    --border:       #e2e8f0;
-    --border-soft:  rgba(0,0,0,0.06);
-    --txt-primary:  #0a1628;
-    --txt-secondary:#475569;
-    --txt-muted:    #94a3b8;
-    --brand:        #0ea5e9;
-    --brand-dark:   #0369a1;
-    --navy:         #0a1628;
-    --navy-mid:     #0d2347;
-    --navy-light:   #1e3a5f;
-    --shadow-sm:    0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
-    --shadow-md:    0 4px 16px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
-    --shadow-lg:    0 8px 32px rgba(0,0,0,0.12);
-    --radius:       14px;
-    --radius-sm:    10px;
-}
+    /* Mapeo directo a vars de Streamlit con fallback dark */
+    --bg:           var(--background-color,          #050c1a);
+    --surface:      var(--secondary-background-color, #0d1f3c);
+    --brand:        var(--primary-color,              #0ea5e9);
+    --txt-primary:  var(--text-color,                 #e2e8f0);
 
-/* ══════════════════════════════════════════════════════════════
-   VARIABLES — Dark mode
-══════════════════════════════════════════════════════════════ */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg:           #0b1120;
-        --surface:      #1a2438;
-        --surface-2:    #111827;
-        --border:       rgba(255,255,255,0.09);
-        --border-soft:  rgba(255,255,255,0.05);
-        --txt-primary:  #f1f5f9;
-        --txt-secondary:#94a3b8;
-        --txt-muted:    #64748b;
-        --brand:        #38bdf8;
-        --brand-dark:   #0ea5e9;
-        --shadow-sm:    0 1px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.04);
-        --shadow-md:    0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04);
-        --shadow-lg:    0 8px 32px rgba(0,0,0,0.5);
-    }
+    /* Derivados con color-mix (funciona en todos los navegadores modernos) */
+    --surface-2:    color-mix(in srgb, var(--secondary-background-color, #0d1f3c) 80%, var(--background-color, #050c1a) 20%);
+    --txt-secondary:color-mix(in srgb, var(--text-color, #e2e8f0) 70%, transparent);
+    --txt-muted:    color-mix(in srgb, var(--text-color, #e2e8f0) 42%, transparent);
+    --brand-dark:   color-mix(in srgb, var(--primary-color, #0ea5e9) 75%, #000 25%);
+
+    /* Bordes: color del texto con opacidad → funciona en claro Y oscuro */
+    --border:       color-mix(in srgb, var(--text-color, #e2e8f0) 12%, transparent);
+    --border-soft:  color-mix(in srgb, var(--text-color, #e2e8f0)  6%, transparent);
+
+    /* Sombras siempre oscuras (visibles en ambos temas) */
+    --shadow-sm:    0 1px 4px rgba(0,0,0,0.20), 0 0 0 1px var(--border);
+    --shadow-md:    0 4px 16px rgba(0,0,0,0.26), 0 0 0 1px var(--border);
+    --shadow-lg:    0 8px 32px rgba(0,0,0,0.32);
+
+    --radius:    14px;
+    --radius-sm: 10px;
+
+    /* Constantes de marca — sidebar/nav siempre azul marino */
+    --navy:      #0a1628;
+    --navy-mid:  #0d2347;
+    --navy-light:#1e3a5f;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -370,14 +362,10 @@ hr {
     box-shadow: var(--shadow-sm);
     background: var(--surface);
 }
-.wg-ok   { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-left-color:#16a34a; color:#14532d; }
-.wg-warn { background: linear-gradient(135deg,#fffbeb,#fef3c7); border-left-color:#d97706; color:#78350f; }
-.wg-rej  { background: linear-gradient(135deg,#fef2f2,#fee2e2); border-left-color:#dc2626; color:#7f1d1d; }
-@media (prefers-color-scheme: dark) {
-    .wg-ok   { background:rgba(22,163,74,0.12); color:#86efac; }
-    .wg-warn { background:rgba(217,119,6,0.12); color:#fde68a; }
-    .wg-rej  { background:rgba(220,38,38,0.12); color:#fca5a5; }
-}
+/* Semi-transparentes → visibles en fondo claro Y oscuro */
+.wg-ok   { background:rgba(22,163,74,0.11);  border-left-color:#16a34a; color:color-mix(in srgb,#16a34a 70%,var(--txt-primary)); }
+.wg-warn { background:rgba(217,119,6,0.11);  border-left-color:#d97706; color:color-mix(in srgb,#d97706 70%,var(--txt-primary)); }
+.wg-rej  { background:rgba(220,38,38,0.11);  border-left-color:#dc2626; color:color-mix(in srgb,#dc2626 70%,var(--txt-primary)); }
 
 /* ══════════════════════════════════════════════════════════════
    KPI CARDS HTML
@@ -563,14 +551,10 @@ hr {
 /* ══════════════════════════════════════════════════════════════
    BADGE de estado
 ══════════════════════════════════════════════════════════════ */
-.badge-ok   { display:inline-block; background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
-.badge-warn { display:inline-block; background:#fef3c7; color:#78350f; border:1px solid #fde68a; border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
-.badge-rej  { display:inline-block; background:#fee2e2; color:#7f1d1d; border:1px solid #fca5a5; border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
-@media (prefers-color-scheme: dark) {
-    .badge-ok   { background:rgba(16,185,129,0.15); color:#6ee7b7; border-color:rgba(16,185,129,0.3); }
-    .badge-warn { background:rgba(245,158,11,0.15); color:#fcd34d; border-color:rgba(245,158,11,0.3); }
-    .badge-rej  { background:rgba(239,68,68,0.15);  color:#fca5a5; border-color:rgba(239,68,68,0.3);  }
-}
+/* Badges: rgba semi-transparent → ambos temas */
+.badge-ok   { display:inline-block; background:rgba(16,185,129,0.14); color:color-mix(in srgb,#059669 60%,var(--txt-primary)); border:1px solid rgba(16,185,129,0.35); border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
+.badge-warn { display:inline-block; background:rgba(245,158,11,0.14); color:color-mix(in srgb,#d97706 60%,var(--txt-primary)); border:1px solid rgba(245,158,11,0.35); border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
+.badge-rej  { display:inline-block; background:rgba(239,68,68,0.14);  color:color-mix(in srgb,#dc2626 60%,var(--txt-primary)); border:1px solid rgba(239,68,68,0.35);  border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
 
 /* ══════════════════════════════════════════════════════════════
    TABLA DE ESTADÍSTICOS (EP15, Sigma)
