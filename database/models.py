@@ -9,6 +9,46 @@ Base = declarative_base()
 
 TURNOS = ["MAÑANA", "TARDE", "NOCHE", "GUARDIA"]
 
+PANELES_PREDEFINIDOS = {
+    "🩸 Hemograma Completo": [
+        ("Leucocitos (WBC)",      "×10³/µL"),
+        ("Eritrocitos (RBC)",     "×10⁶/µL"),
+        ("Hemoglobina",           "g/dL"),
+        ("Hematocrito",           "%"),
+        ("VCM (MCV)",             "fL"),
+        ("HCM (MCH)",             "pg"),
+        ("CHCM (MCHC)",           "g/dL"),
+        ("Plaquetas",             "×10³/µL"),
+        ("Neutrófilos %",         "%"),
+        ("Linfocitos %",          "%"),
+        ("Monocitos %",           "%"),
+        ("Eosinófilos %",         "%"),
+        ("Basófilos %",           "%"),
+    ],
+    "🫁 Gases Arteriales": [
+        ("pH",                    ""),
+        ("pCO₂",                  "mmHg"),
+        ("pO₂",                   "mmHg"),
+        ("HCO₃⁻",                 "mmol/L"),
+        ("Exceso de Bases (BE)",  "mmol/L"),
+        ("SaO₂",                  "%"),
+        ("Lactato",               "mmol/L"),
+        ("Na⁺ (BGA)",             "mmol/L"),
+        ("K⁺ (BGA)",              "mmol/L"),
+        ("Ca²⁺ iónico (BGA)",     "mmol/L"),
+        ("Cl⁻ (BGA)",             "mmol/L"),
+        ("Glucosa (BGA)",         "mg/dL"),
+    ],
+    "⚡ Electrolitos": [
+        ("Sodio (Na⁺)",           "mEq/L"),
+        ("Potasio (K⁺)",          "mEq/L"),
+        ("Cloro (Cl⁻)",           "mEq/L"),
+        ("Calcio iónico (Ca²⁺)",  "mmol/L"),
+        ("Magnesio (Mg²⁺)",       "mEq/L"),
+        ("Fósforo inorgánico",    "mg/dL"),
+    ],
+}
+
 CAUSAS_PROBABLES = [
     "Error de operador",
     "Problema con el reactivo",
@@ -44,6 +84,19 @@ class Equipo(Base):
     activo = Column(Boolean, default=True)
     area = relationship("Area", back_populates="equipos")
     materiales = relationship("MaterialControl", back_populates="equipo", cascade="all, delete-orphan")
+    grupos = relationship("GrupoAnalitos", back_populates="equipo", cascade="all, delete-orphan")
+
+
+class GrupoAnalitos(Base):
+    """Panel o batería de pruebas: conjunto de analitos analizados juntos (hemograma, gases, etc.)."""
+    __tablename__ = "grupos_analitos"
+    id = Column(Integer, primary_key=True)
+    equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
+    nombre = Column(String(150), nullable=False)
+    descripcion = Column(Text)
+    activo = Column(Boolean, default=True)
+    equipo = relationship("Equipo", back_populates="grupos")
+    materiales = relationship("MaterialControl", back_populates="grupo")
 
 
 class Personal(Base):
@@ -63,12 +116,14 @@ class MaterialControl(Base):
     __tablename__ = "materiales_control"
     id = Column(Integer, primary_key=True)
     equipo_id = Column(Integer, ForeignKey("equipos.id"), nullable=False)
+    grupo_id = Column(Integer, ForeignKey("grupos_analitos.id"), nullable=True)
     analito = Column(String(100), nullable=False)
     proveedor = Column(String(100), nullable=False)
     unidad = Column(String(30))
     nombre_material = Column(String(150))
     activo = Column(Boolean, default=True)
     equipo = relationship("Equipo", back_populates="materiales")
+    grupo = relationship("GrupoAnalitos", back_populates="materiales")
     lotes = relationship("Lote", back_populates="material", cascade="all, delete-orphan")
     controles_diarios = relationship("ControlDiario", back_populates="material")
     controles_externos = relationship("ControlExterno", back_populates="material")

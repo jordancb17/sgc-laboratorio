@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, exists
 
 from .models import (
-    Area, Equipo, Personal, MaterialControl, Lote, NivelLote,
+    Area, Equipo, Personal, GrupoAnalitos, MaterialControl, Lote, NivelLote,
     ControlDiario, ControlExterno, SesionEP15, MedicionEP15, AccionCorrectiva,
     IndiceCalidad, Calibracion, Mantenimiento,
 )
@@ -215,6 +215,89 @@ def eliminar_personal(db: Session, personal_id: int) -> tuple[bool, str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# GRUPOS DE ANALITOS (PANELES DE PRUEBAS)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def listar_grupos(db: Session, equipo_id: Optional[int] = None, solo_activos: bool = True) -> list[GrupoAnalitos]:
+    stmt = select(GrupoAnalitos)
+    if equipo_id:
+        stmt = stmt.where(GrupoAnalitos.equipo_id == equipo_id)
+    if solo_activos:
+        stmt = stmt.where(GrupoAnalitos.activo == True)
+    return list(db.scalars(stmt.order_by(GrupoAnalitos.nombre)))
+
+
+def crear_grupo(db: Session, equipo_id: int, nombre: str, descripcion: str = "") -> GrupoAnalitos:
+    g = GrupoAnalitos(equipo_id=equipo_id, nombre=nombre.strip(), descripcion=descripcion.strip())
+    db.add(g)
+    db.commit()
+    db.refresh(g)
+    return g
+
+
+def actualizar_grupo(db: Session, grupo_id: int, equipo_id: int, nombre: str, descripcion: str = "") -> Optional[GrupoAnalitos]:
+    g = db.get(GrupoAnalitos, grupo_id)
+    if g:
+        g.equipo_id = equipo_id
+        g.nombre = nombre.strip()
+        g.descripcion = descripcion.strip()
+        db.commit()
+        db.refresh(g)
+    return g
+
+
+def toggle_activo_grupo(db: Session, grupo_id: int) -> bool:
+    g = db.get(GrupoAnalitos, grupo_id)
+    if g:
+        g.activo = not g.activo
+        db.commit()
+        return g.activo
+    return False
+
+
+def eliminar_grupo(db: Session, grupo_id: int) -> tuple[bool, str]:
+    """Elimina el grupo desvinculando sus analitos (no los elimina)."""
+    g = db.get(GrupoAnalitos, grupo_id)
+    if not g:
+        return False, "Grupo no encontrado."
+    mats = db.scalars(select(MaterialControl).where(MaterialControl.grupo_id == grupo_id)).all()
+    for m in mats:
+        m.grupo_id = None
+    db.delete(g)
+    db.commit()
+    n = len(mats)
+    return True, f"Grupo eliminado. {n} analito(s) desvinculado(s) (no borrados)."
+
+
+def crear_panel_desde_plantilla(
+    db: Session,
+    equipo_id: int,
+    nombre_grupo: str,
+    descripcion: str,
+    proveedor: str,
+    parametros: list[tuple[str, str]],
+) -> tuple[GrupoAnalitos, list[MaterialControl]]:
+    """Crea un GrupoAnalitos y todos sus MaterialControl de una lista (analito, unidad)."""
+    grupo = crear_grupo(db, equipo_id, nombre_grupo, descripcion)
+    materiales = []
+    for analito, unidad in parametros:
+        m = MaterialControl(
+            equipo_id=equipo_id,
+            grupo_id=grupo.id,
+            analito=analito,
+            proveedor=proveedor.strip(),
+            unidad=unidad,
+            nombre_material="",
+        )
+        db.add(m)
+        materiales.append(m)
+    db.commit()
+    for m in materiales:
+        db.refresh(m)
+    return grupo, materiales
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MATERIALES DE CONTROL (ANALITOS)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -234,9 +317,11 @@ def crear_material(
     proveedor: str,
     unidad: str = "",
     nombre_material: str = "",
+    grupo_id: Optional[int] = None,
 ) -> MaterialControl:
     m = MaterialControl(
         equipo_id=equipo_id,
+        grupo_id=grupo_id,
         analito=analito.strip(),
         proveedor=proveedor.strip(),
         unidad=unidad.strip(),
@@ -265,10 +350,12 @@ def actualizar_material(
     proveedor: str,
     unidad: str = "",
     nombre_material: str = "",
+    grupo_id: Optional[int] = None,
 ) -> Optional[MaterialControl]:
     m = db.get(MaterialControl, material_id)
     if m:
         m.equipo_id = equipo_id
+        m.grupo_id = grupo_id
         m.analito = analito.strip()
         m.proveedor = proveedor.strip()
         m.unidad = unidad.strip()
@@ -341,6 +428,66 @@ def crear_lote(
     db.commit()
     db.refresh(lote)
     return lote
+
+
+def crear_lotes_grupo(
+    db: Session,
+    grupo_id: int,
+    numero_lote: str,
+    fecha_vencimiento: date,
+    targets: dict,  # {material_id: [{"nivel": N, "media": X, "de": S, "min": A, "max": B}, ...]}
+) -> tuple[int, list[str]]:
+    """
+    Crea lotes para todos los analitos de un grupo con el mismo número de lote.
+    targets: dict keyed por material_id con lista de dicts por nivel.
+    Returns (cantidad_creados, errores[]).
+    """
+    creados = 0
+    errores = []
+    for mat_id, niveles in targets.items():
+        if not niveles:
+            continue
+        try:
+            # Si ya existe ese número de lote para ese material, actualizamos niveles
+            stmt = select(Lote).where(Lote.material_id == mat_id, Lote.numero_lote == numero_lote.strip())
+            lote_existente = db.scalars(stmt).first()
+            if lote_existente:
+                lote = lote_existente
+                lote.fecha_vencimiento = fecha_vencimiento
+            else:
+                lote = Lote(
+                    material_id=mat_id,
+                    numero_lote=numero_lote.strip(),
+                    fecha_vencimiento=fecha_vencimiento,
+                )
+                db.add(lote)
+                db.flush()
+
+            for nv in niveles:
+                stmt_nv = select(NivelLote).where(
+                    NivelLote.lote_id == lote.id, NivelLote.nivel == nv["nivel"]
+                )
+                nl = db.scalars(stmt_nv).first()
+                if nl:
+                    nl.media = nv["media"]
+                    nl.de = nv["de"]
+                    nl.valor_minimo = nv["min"]
+                    nl.valor_maximo = nv["max"]
+                else:
+                    nl = NivelLote(
+                        lote_id=lote.id,
+                        nivel=nv["nivel"],
+                        media=nv["media"],
+                        de=nv["de"],
+                        valor_minimo=nv["min"],
+                        valor_maximo=nv["max"],
+                    )
+                    db.add(nl)
+            creados += 1
+        except Exception as e:
+            errores.append(f"Material ID {mat_id}: {e}")
+    db.commit()
+    return creados, errores
 
 
 def get_lote_activo(db: Session, material_id: int) -> Optional[Lote]:

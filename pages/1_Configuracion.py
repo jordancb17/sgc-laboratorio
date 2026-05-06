@@ -1,5 +1,5 @@
 """
-Configuración del sistema: Áreas, Equipos (con Marca), Personal, Analitos y Lotes.
+Configuración del sistema: Áreas, Equipos, Personal, Grupos de Pruebas, Analitos y Lotes.
 """
 
 import sys
@@ -12,6 +12,7 @@ from datetime import date
 
 from database.database import init_db, get_session
 from database import crud
+from database.models import PANELES_PREDEFINIDOS
 from modules.page_utils import setup_page, page_header
 
 st.set_page_config(page_title="Configuración", page_icon="⚙️", layout="wide")
@@ -23,12 +24,13 @@ def main():
     page_header(
         icon="⚙️",
         title="Configuración del Sistema",
-        subtitle="Gestione áreas, equipos, personal, analitos y lotes de control",
+        subtitle="Gestione áreas, equipos, personal, grupos de pruebas, analitos y lotes de control",
         badge="Administración",
     )
 
-    tab_areas, tab_equipos, tab_personal, tab_analitos, tab_lotes = st.tabs([
-        "🏥 Áreas", "🔬 Equipos", "👤 Personal", "🧪 Analitos / Materiales", "📦 Lotes",
+    tab_areas, tab_equipos, tab_personal, tab_grupos, tab_analitos, tab_lotes = st.tabs([
+        "🏥 Áreas", "🔬 Equipos", "👤 Personal",
+        "📋 Grupos de Pruebas", "🧪 Analitos / Materiales", "📦 Lotes",
     ])
     db = get_session()
     try:
@@ -38,6 +40,8 @@ def main():
             _tab_equipos(db)
         with tab_personal:
             _tab_personal(db)
+        with tab_grupos:
+            _tab_grupos(db)
         with tab_analitos:
             _tab_analitos(db)
         with tab_lotes:
@@ -380,6 +384,182 @@ def _tab_personal(db):
             st.rerun()
 
 
+# ─── GRUPOS DE PRUEBAS ────────────────────────────────────────────────────────
+
+def _tab_grupos(db):
+    _section_title("📋 Grupos de Pruebas (Paneles)",
+                   "Agrupe analitos que se miden juntos: Hemograma, Gases Arteriales, Electrolitos, etc.")
+
+    equipos = crud.listar_equipos(db)
+    if not equipos:
+        st.warning("⚠️ Primero debe registrar **Equipos**.")
+        return
+    eq_opts = {f"{e.area.nombre} › {e.nombre}": e.id for e in equipos}
+
+    # ── Crear desde plantilla predefinida ──────────────────────────────────────
+    with st.expander("⚡ Crear Panel desde Plantilla (Hemograma / Gases / Electrolitos)", expanded=False):
+        st.info("Carga automáticamente todos los parámetros del panel seleccionado. "
+                "Solo deberás agregar los **lotes** y sus valores objetivo después.")
+        col1, col2 = st.columns(2)
+        plantilla_sel = col1.selectbox("Plantilla predefinida", list(PANELES_PREDEFINIDOS.keys()), key="plt_sel")
+        eq_plantilla  = col2.selectbox("Equipo *", list(eq_opts.keys()), key="plt_eq")
+        col3, col4 = st.columns(2)
+        nombre_grupo_plt = col3.text_input("Nombre del grupo *",
+                                           value=plantilla_sel.split(" ", 1)[1],
+                                           key="plt_nombre")
+        proveedor_plt = col4.text_input("Proveedor del material de control *",
+                                        placeholder="ej. Bio-Rad, Roche, Sysmex",
+                                        key="plt_prov")
+        desc_plt = st.text_input("Descripción (opcional)", key="plt_desc")
+
+        parametros = PANELES_PREDEFINIDOS[plantilla_sel]
+        with st.expander(f"Ver los {len(parametros)} parámetros que se crearán:", expanded=False):
+            st.dataframe(
+                pd.DataFrame(parametros, columns=["Analito", "Unidad"]),
+                use_container_width=True, hide_index=True
+            )
+
+        if st.button("🚀 Crear Panel Completo", type="primary", key="btn_crear_plantilla"):
+            if not nombre_grupo_plt.strip():
+                st.error("El nombre del grupo es obligatorio.")
+            elif not proveedor_plt.strip():
+                st.error("El proveedor del material de control es obligatorio.")
+            else:
+                try:
+                    grupo, mats = crud.crear_panel_desde_plantilla(
+                        db,
+                        eq_opts[eq_plantilla],
+                        nombre_grupo_plt,
+                        desc_plt,
+                        proveedor_plt,
+                        parametros,
+                    )
+                    st.success(
+                        f"✅ Panel **{grupo.nombre}** creado con {len(mats)} analitos. "
+                        f"Ahora vaya a la pestaña **📦 Lotes** para registrar los valores objetivo de cada parámetro."
+                    )
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+    # ── Crear grupo manualmente ────────────────────────────────────────────────
+    with st.expander("➕ Crear Grupo Manualmente", expanded=False):
+        with st.form("form_grupo"):
+            col1, col2 = st.columns([2, 3])
+            eq_nuevo = col1.selectbox("Equipo *", list(eq_opts.keys()), key="grp_eq_new")
+            nombre_g = col2.text_input("Nombre del grupo *", placeholder="ej. Panel Hepático")
+            desc_g   = st.text_input("Descripción", placeholder="Descripción breve opcional")
+            if st.form_submit_button("💾 Guardar Grupo", type="primary", use_container_width=True):
+                if not nombre_g.strip():
+                    st.error("El nombre es obligatorio.")
+                else:
+                    try:
+                        crud.crear_grupo(db, eq_opts[eq_nuevo], nombre_g, desc_g)
+                        st.success(f"✅ Grupo **{nombre_g}** creado.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+    # ── Lista de grupos ────────────────────────────────────────────────────────
+    grupos = crud.listar_grupos(db, solo_activos=False)
+    if not grupos:
+        _empty_state("No hay grupos de pruebas registrados. Use una plantilla o cree uno manualmente.")
+        return
+
+    st.markdown(f"**{len(grupos)} grupo(s) registrado(s)**")
+    filas_g = []
+    for g in grupos:
+        mats_g = [m for m in g.materiales]
+        filas_g.append({
+            "ID": g.id,
+            "Equipo": g.equipo.nombre,
+            "Área": g.equipo.area.nombre,
+            "Grupo / Panel": g.nombre,
+            "Descripción": g.descripcion or "—",
+            "Analitos": len(mats_g),
+            "Con lote": sum(1 for m in mats_g if crud.get_lote_activo(db, m.id)),
+            "Estado": "✅ Activo" if g.activo else "⛔ Inactivo",
+        })
+    st.dataframe(pd.DataFrame(filas_g), use_container_width=True, hide_index=True)
+
+    # ── Detalle del grupo seleccionado ────────────────────────────────────────
+    st.markdown("---")
+    grp_opts = {
+        f"{'✅' if g.activo else '⛔'} {g.equipo.nombre} › {g.nombre}": g.id
+        for g in grupos
+    }
+    sel_g = st.selectbox("Seleccione un grupo para gestionar:", list(grp_opts.keys()),
+                         key="sel_grp_edit", label_visibility="collapsed")
+    grp_id_sel = grp_opts[sel_g]
+    grp_obj = next(g for g in grupos if g.id == grp_id_sel)
+
+    # Analitos del grupo
+    mats_del_grupo = [m for m in grp_obj.materiales]
+    if mats_del_grupo:
+        st.markdown(f"**Parámetros de «{grp_obj.nombre}»** — {len(mats_del_grupo)} analitos:")
+        filas_m = []
+        for m in mats_del_grupo:
+            lote_a = crud.get_lote_activo(db, m.id)
+            filas_m.append({
+                "Analito": m.analito,
+                "Unidad": m.unidad or "—",
+                "Proveedor": m.proveedor,
+                "Lote activo": lote_a.numero_lote if lote_a else "⚠️ Sin lote",
+                "Vencimiento": lote_a.fecha_vencimiento if lote_a else "—",
+                "Estado": "✅" if m.activo else "⛔",
+            })
+        st.dataframe(pd.DataFrame(filas_m), use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ Este grupo no tiene analitos aún. Cree analitos en la pestaña **🧪 Analitos** y asígnelos a este grupo.")
+
+    # ── Editar / Estado / Eliminar ─────────────────────────────────────────────
+    _section_title("✏️ Editar o Cambiar Estado")
+    with st.form("form_edit_grupo"):
+        area_names_g = list(eq_opts.keys())
+        try:
+            eq_idx_g = list(eq_opts.values()).index(grp_obj.equipo_id)
+        except ValueError:
+            eq_idx_g = 0
+        eq_edit_g    = st.selectbox("Equipo *", area_names_g, index=eq_idx_g, key="grp_eq_edit")
+        col1, col2  = st.columns([2, 3])
+        nuevo_nom_g = col1.text_input("Nombre del grupo *", value=grp_obj.nombre)
+        nueva_desc_g = col2.text_input("Descripción", value=grp_obj.descripcion or "")
+
+        estado_g = "✅ Activar" if not grp_obj.activo else "⛔ Desactivar"
+        col_s, col_t, col_d = st.columns([2, 1.3, 1])
+        guardar_g  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
+        toggling_g = col_t.form_submit_button(estado_g, use_container_width=True)
+        del_btn_g  = col_d.form_submit_button("🗑️ Eliminar", use_container_width=True)
+
+        if guardar_g:
+            if not nuevo_nom_g.strip():
+                st.error("El nombre es obligatorio.")
+            else:
+                crud.actualizar_grupo(db, grp_id_sel, eq_opts[eq_edit_g], nuevo_nom_g, nueva_desc_g)
+                st.success("✅ Grupo actualizado.")
+                st.rerun()
+
+        if toggling_g:
+            nv = crud.toggle_activo_grupo(db, grp_id_sel)
+            st.info(f"Grupo **{grp_obj.nombre}** {'activado ✅' if nv else 'desactivado ⛔'}.")
+            st.rerun()
+
+        if del_btn_g:
+            st.session_state["_confirm_del_grp"] = grp_id_sel
+
+    if st.session_state.get("_confirm_del_grp") == grp_id_sel:
+        st.warning(f"⚠️ ¿Eliminar el grupo **{grp_obj.nombre}**? Los analitos NO se borran, solo se desvinculan del grupo.")
+        c1, c2 = st.columns(2)
+        if c1.button("✅ Sí, eliminar grupo", key="btn_grp_del_yes", type="primary", use_container_width=True):
+            ok, msg = crud.eliminar_grupo(db, grp_id_sel)
+            st.session_state.pop("_confirm_del_grp", None)
+            st.success(msg) if ok else st.error(msg)
+            st.rerun()
+        if c2.button("❌ Cancelar", key="btn_grp_del_no", use_container_width=True):
+            st.session_state.pop("_confirm_del_grp", None)
+            st.rerun()
+
+
 # ─── ANALITOS / MATERIALES DE CONTROL ────────────────────────────────────────
 
 def _tab_analitos(db):
@@ -401,13 +581,21 @@ def _tab_analitos(db):
             proveedor  = col2.text_input("Proveedor / Marca *",     placeholder="ej. Roche, Mindray")
             unidad     = col1.text_input("Unidad de medida",        placeholder="ej. mg/dL, g/L, U/L")
             nombre_mat = col2.text_input("Nombre material control", placeholder="ej. Multiqual Level 1")
+            # Selector de grupo (opcional)
+            todos_grupos_new = crud.listar_grupos(db, solo_activos=False)
+            grp_opts_new = {"(Sin grupo — analito individual)": None}
+            grp_opts_new.update({f"{g.equipo.nombre} › {g.nombre}": g.id for g in todos_grupos_new})
+            grp_sel_new = st.selectbox("Grupo de pruebas (opcional)", list(grp_opts_new.keys()))
             submitted  = st.form_submit_button("💾 Guardar Analito", type="primary", use_container_width=True)
             if submitted:
                 if not analito.strip() or not proveedor.strip():
                     st.error("El nombre del analito y el proveedor son obligatorios.")
                 else:
                     try:
-                        crud.crear_material(db, eq_opts[eq_sel], analito, proveedor, unidad, nombre_mat)
+                        crud.crear_material(
+                            db, eq_opts[eq_sel], analito, proveedor, unidad, nombre_mat,
+                            grupo_id=grp_opts_new[grp_sel_new]
+                        )
                         st.success(f"✅ Analito **{analito}** registrado correctamente.")
                         st.rerun()
                     except Exception as e:
@@ -467,6 +655,17 @@ def _tab_analitos(db):
         nueva_unidad    = col1.text_input("Unidad de medida",     value=mat_obj.unidad or "")
         nuevo_nom_mat   = col2.text_input("Nombre material control", value=mat_obj.nombre_material or "")
 
+        # Selector de grupo
+        todos_grupos_edit = crud.listar_grupos(db, solo_activos=False)
+        grp_opts_edit = {"(Sin grupo — analito individual)": None}
+        grp_opts_edit.update({f"{g.equipo.nombre} › {g.nombre}": g.id for g in todos_grupos_edit})
+        grp_edit_keys = list(grp_opts_edit.keys())
+        try:
+            grp_edit_idx = list(grp_opts_edit.values()).index(mat_obj.grupo_id)
+        except ValueError:
+            grp_edit_idx = 0
+        grp_sel_edit = st.selectbox("Grupo de pruebas (opcional)", grp_edit_keys, index=grp_edit_idx)
+
         estado_label_mat = "✅ Activar" if not mat_obj.activo else "⛔ Desactivar"
         col_s, col_t, col_d = st.columns([2, 1.3, 1])
         guardar_mat  = col_s.form_submit_button("💾 Guardar cambios", type="primary", use_container_width=True)
@@ -480,7 +679,8 @@ def _tab_analitos(db):
                 try:
                     crud.actualizar_material(
                         db, mat_id_sel, eq_opts_mat[eq_edit_mat],
-                        nuevo_analito, nuevo_proveedor, nueva_unidad, nuevo_nom_mat
+                        nuevo_analito, nuevo_proveedor, nueva_unidad, nuevo_nom_mat,
+                        grupo_id=grp_opts_edit[grp_sel_edit]
                     )
                     st.success("✅ Analito actualizado correctamente.")
                     st.rerun()
@@ -519,6 +719,83 @@ def _tab_lotes(db):
     _section_title("📦 Lotes de Reactivo / Material de Control",
                    "Registre lotes con su fecha de vencimiento y los valores objetivo por nivel (media, DE, rango aceptable).")
 
+    # ── Registrar lote para un grupo completo ─────────────────────────────────
+    grupos_con_mats = [g for g in crud.listar_grupos(db, solo_activos=False)
+                       if any(m.activo for m in g.materiales)]
+    if grupos_con_mats:
+        with st.expander("🧩 Registrar Lote para un Panel / Grupo Completo", expanded=False):
+            st.info("Ingrese el número de lote y los valores objetivo de **todos los parámetros del panel** de una sola vez.")
+            grp_lote_opts = {f"{g.equipo.nombre} › {g.nombre}": g.id for g in grupos_con_mats}
+            grp_lote_sel  = st.selectbox("Seleccione el panel / grupo *", list(grp_lote_opts.keys()), key="gl_grp")
+            grp_lote_obj  = next(g for g in grupos_con_mats if g.id == grp_lote_opts[grp_lote_sel])
+            mats_grp_activos = [m for m in grp_lote_obj.materiales if m.activo]
+
+            col1, col2, col3 = st.columns(3)
+            num_lote_g   = col1.text_input("Número de lote *", placeholder="ej. LOT-2025-001", key="gl_num")
+            fecha_vto_g  = col2.date_input("Fecha de vencimiento *", min_value=date.today(), key="gl_fecha")
+            n_niveles_g  = col3.selectbox("Niveles a registrar *", [1, 2, 3], key="gl_niv")
+
+            st.markdown(f"**Complete los valores objetivo para cada parámetro de «{grp_lote_obj.nombre}»:**")
+
+            # Cabecera de columnas
+            header_cols = st.columns([2] + [1, 1, 1, 1] * n_niveles_g)
+            header_cols[0].markdown("**Analito (unidad)**")
+            for nv_i in range(n_niveles_g):
+                base = 1 + nv_i * 4
+                header_cols[base].markdown(f"**L{nv_i+1} — X̄**")
+                header_cols[base+1].markdown(f"**L{nv_i+1} — s**")
+                header_cols[base+2].markdown(f"**L{nv_i+1} — Mín**")
+                header_cols[base+3].markdown(f"**L{nv_i+1} — Máx**")
+
+            targets_g = {}
+            for m in mats_grp_activos:
+                row_cols = st.columns([2] + [1, 1, 1, 1] * n_niveles_g)
+                row_cols[0].markdown(f"**{m.analito}** ({m.unidad or '—'})")
+                niveles_data_g = []
+                for nv_i in range(n_niveles_g):
+                    base = 1 + nv_i * 4
+                    media_v = row_cols[base].number_input("X̄", format="%.4f",
+                                                          key=f"gl_m{m.id}_nv{nv_i+1}_media",
+                                                          label_visibility="collapsed")
+                    de_v    = row_cols[base+1].number_input("s", min_value=0.0001, format="%.4f",
+                                                            key=f"gl_m{m.id}_nv{nv_i+1}_de",
+                                                            label_visibility="collapsed")
+                    vmin_v  = row_cols[base+2].number_input("Mín", format="%.4f",
+                                                             key=f"gl_m{m.id}_nv{nv_i+1}_min",
+                                                             label_visibility="collapsed")
+                    vmax_v  = row_cols[base+3].number_input("Máx", format="%.4f",
+                                                             key=f"gl_m{m.id}_nv{nv_i+1}_max",
+                                                             label_visibility="collapsed")
+                    niveles_data_g.append({"nivel": nv_i+1, "media": media_v, "de": de_v,
+                                           "min": vmin_v, "max": vmax_v})
+                targets_g[m.id] = niveles_data_g
+
+            if st.button("💾 Guardar Lote para Todo el Panel", type="primary", key="btn_gl_save"):
+                if not num_lote_g.strip():
+                    st.error("El número de lote es obligatorio.")
+                else:
+                    invalidos = []
+                    for mat_id_g, nivs in targets_g.items():
+                        for nv in nivs:
+                            if nv["de"] <= 0:
+                                mat_name = next(m.analito for m in mats_grp_activos if m.id == mat_id_g)
+                                invalidos.append(f"{mat_name} Nivel {nv['nivel']}: DE debe ser > 0")
+                    if invalidos:
+                        for err in invalidos:
+                            st.error(err)
+                    else:
+                        creados_g, errores_g = crud.crear_lotes_grupo(
+                            db, grp_lote_obj.id, num_lote_g, fecha_vto_g, targets_g
+                        )
+                        if errores_g:
+                            for e in errores_g:
+                                st.error(e)
+                        st.success(
+                            f"✅ Lote **{num_lote_g}** registrado para {creados_g} analito(s) del panel «{grp_lote_obj.nombre}»."
+                        )
+                        st.rerun()
+
+    st.markdown("---")
     materiales = crud.listar_materiales(db)
     if not materiales:
         st.warning("⚠️ Primero debe registrar **Analitos**.")

@@ -77,6 +77,7 @@ def _migrate_postgres():
         "ALTER TABLE equipos ADD COLUMN IF NOT EXISTS marca VARCHAR(100)",
         "ALTER TABLE controles_diarios ADD COLUMN IF NOT EXISTS turno VARCHAR(20)",
         "ALTER TABLE controles_diarios ADD COLUMN IF NOT EXISTS es_retroactivo BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE materiales_control ADD COLUMN IF NOT EXISTS grupo_id INTEGER REFERENCES grupos_analitos(id)",
     ]
     for sql in migraciones:
         try:
@@ -88,11 +89,13 @@ def _migrate_postgres():
 
 def _migrate_sqlite():
     migraciones = [
-        ("controles_diarios", "turno",          "ALTER TABLE controles_diarios ADD COLUMN turno VARCHAR(20)"),
-        ("controles_diarios", "es_retroactivo", "ALTER TABLE controles_diarios ADD COLUMN es_retroactivo BOOLEAN DEFAULT 0"),
-        ("equipos",           "marca",          "ALTER TABLE equipos ADD COLUMN marca VARCHAR(100)"),
-        ("calibraciones",     "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
-        ("mantenimiento",     "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
+        ("controles_diarios",  "turno",          "ALTER TABLE controles_diarios ADD COLUMN turno VARCHAR(20)"),
+        ("controles_diarios",  "es_retroactivo", "ALTER TABLE controles_diarios ADD COLUMN es_retroactivo BOOLEAN DEFAULT 0"),
+        ("equipos",            "marca",          "ALTER TABLE equipos ADD COLUMN marca VARCHAR(100)"),
+        ("materiales_control", "grupo_id",       "ALTER TABLE materiales_control ADD COLUMN grupo_id INTEGER"),
+        ("calibraciones",      "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
+        ("mantenimiento",      "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
+        ("grupos_analitos",    "_dummy_",        "SELECT 1"),   # tabla nueva, create_all la crea
     ]
     with engine.connect() as conn:
         for tabla, columna, sql in migraciones:
