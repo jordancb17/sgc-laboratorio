@@ -397,46 +397,111 @@ def _tab_grupos(db):
     eq_opts = {f"{e.area.nombre} › {e.nombre}": e.id for e in equipos}
 
     # ── Crear desde plantilla predefinida ──────────────────────────────────────
-    with st.expander("⚡ Crear Panel desde Plantilla (Hemograma / Gases / Electrolitos)", expanded=False):
-        st.info("Carga automáticamente todos los parámetros del panel seleccionado. "
-                "Solo deberás agregar los **lotes** y sus valores objetivo después.")
+    with st.expander("⚡ Crear Panel desde Plantilla", expanded=False):
+        st.info(
+            "Seleccione una plantilla, **marque solo los parámetros** que mide su equipo, "
+            "edite los nombres o unidades si su equipo los llama diferente, "
+            "y agregue los que no estén en la lista."
+        )
+
+        # ── Selectores superiores ────────────────────────────────────────────
         col1, col2 = st.columns(2)
-        plantilla_sel = col1.selectbox("Plantilla predefinida", list(PANELES_PREDEFINIDOS.keys()), key="plt_sel")
+        plantilla_sel = col1.selectbox("Plantilla base", list(PANELES_PREDEFINIDOS.keys()), key="plt_sel")
         eq_plantilla  = col2.selectbox("Equipo *", list(eq_opts.keys()), key="plt_eq")
         col3, col4 = st.columns(2)
-        nombre_grupo_plt = col3.text_input("Nombre del grupo *",
-                                           value=plantilla_sel.split(" ", 1)[1],
-                                           key="plt_nombre")
-        proveedor_plt = col4.text_input("Proveedor del material de control *",
-                                        placeholder="ej. Bio-Rad, Roche, Sysmex",
-                                        key="plt_prov")
+        # Nombre sugerido = texto de la plantilla sin el emoji
+        _nom_sug = " ".join(plantilla_sel.split(" ")[1:]).split("—")[-1].strip() if "—" in plantilla_sel else " ".join(plantilla_sel.split(" ")[1:])
+        nombre_grupo_plt = col3.text_input("Nombre del grupo *", value=_nom_sug, key="plt_nombre")
+        proveedor_plt    = col4.text_input("Proveedor material de control *",
+                                           placeholder="ej. Bio-Rad, Roche, Sysmex", key="plt_prov")
         desc_plt = st.text_input("Descripción (opcional)", key="plt_desc")
 
-        parametros = PANELES_PREDEFINIDOS[plantilla_sel]
-        with st.expander(f"Ver los {len(parametros)} parámetros que se crearán:", expanded=False):
-            st.dataframe(
-                pd.DataFrame(parametros, columns=["Analito", "Unidad"]),
-                use_container_width=True, hide_index=True
-            )
+        # Resetear parámetros personalizados al cambiar de plantilla
+        if st.session_state.get("_plt_last") != plantilla_sel:
+            st.session_state["_plt_last"]   = plantilla_sel
+            st.session_state["_plt_custom"] = []
 
-        if st.button("🚀 Crear Panel Completo", type="primary", key="btn_crear_plantilla"):
+        params_base = PANELES_PREDEFINIDOS[plantilla_sel]
+
+        # ── Tabla editable de parámetros de la plantilla ─────────────────────
+        st.markdown(f"**Parámetros de la plantilla** — marque los que aplican a su equipo ({len(params_base)} en total):")
+
+        h0, h1, h2 = st.columns([0.5, 4, 2])
+        h0.caption("✓")
+        h1.caption("Nombre del analito (editable)")
+        h2.caption("Unidad (editable)")
+
+        params_seleccionados = []
+        for i, (nom_def, uni_def) in enumerate(params_base):
+            c0, c1, c2 = st.columns([0.5, 4, 2])
+            incluido = c0.checkbox("", value=True, key=f"plt_chk_{i}", label_visibility="collapsed")
+            nom_edit = c1.text_input("n", value=nom_def, key=f"plt_nom_{i}", label_visibility="collapsed",
+                                     disabled=not incluido)
+            uni_edit = c2.text_input("u", value=uni_def, key=f"plt_uni_{i}", label_visibility="collapsed",
+                                     disabled=not incluido)
+            if incluido:
+                params_seleccionados.append((nom_edit.strip(), uni_edit.strip()))
+
+        # ── Parámetros personalizados (los que no están en la plantilla) ──────
+        st.markdown("---")
+        st.markdown("**Agregar parámetros que no están en la plantilla** (ej. parámetros exclusivos de su equipo):")
+
+        custom_params = st.session_state.get("_plt_custom", [])
+
+        # Listar los ya agregados
+        if custom_params:
+            for j, (cn, cu) in enumerate(custom_params):
+                cj0, cj1, cj2, cj3 = st.columns([0.5, 4, 2, 0.5])
+                cj0.markdown("✅")
+                cj1.markdown(f"**{cn}**")
+                cj2.markdown(f"`{cu or '—'}`")
+                if cj3.button("🗑️", key=f"plt_del_cp_{j}", help="Quitar"):
+                    custom_params.pop(j)
+                    st.session_state["_plt_custom"] = custom_params
+                    st.rerun()
+
+        # Input para nuevo parámetro
+        na0, na1, na2, na3 = st.columns([0.5, 4, 2, 0.5])
+        nuevo_nom_p = na1.text_input("Nombre", key="plt_cp_nom",
+                                     placeholder="ej. Granulocitos Inmaduros #",
+                                     label_visibility="collapsed")
+        nuevo_uni_p = na2.text_input("Unidad", key="plt_cp_uni",
+                                     placeholder="ej. ×10³/µL",
+                                     label_visibility="collapsed")
+        if na3.button("➕", key="plt_btn_add_cp", help="Agregar parámetro"):
+            if nuevo_nom_p.strip():
+                custom_params.append((nuevo_nom_p.strip(), nuevo_uni_p.strip()))
+                st.session_state["_plt_custom"] = custom_params
+                st.rerun()
+            else:
+                st.warning("Escriba el nombre del parámetro antes de agregar.")
+
+        # ── Resumen y botón crear ─────────────────────────────────────────────
+        todos_params = params_seleccionados + custom_params
+        st.markdown("---")
+        col_res, col_btn = st.columns([3, 1])
+        col_res.info(
+            f"✅ **{len(params_seleccionados)}** de la plantilla   +   "
+            f"➕ **{len(custom_params)}** personalizados   =   "
+            f"**{len(todos_params)} parámetros** en total"
+        )
+        if col_btn.button("🚀 Crear Panel", type="primary", key="btn_crear_plantilla", use_container_width=True):
             if not nombre_grupo_plt.strip():
                 st.error("El nombre del grupo es obligatorio.")
             elif not proveedor_plt.strip():
                 st.error("El proveedor del material de control es obligatorio.")
+            elif not todos_params:
+                st.error("Seleccione al menos un parámetro.")
             else:
                 try:
                     grupo, mats = crud.crear_panel_desde_plantilla(
-                        db,
-                        eq_opts[eq_plantilla],
-                        nombre_grupo_plt,
-                        desc_plt,
-                        proveedor_plt,
-                        parametros,
+                        db, eq_opts[eq_plantilla],
+                        nombre_grupo_plt, desc_plt, proveedor_plt, todos_params,
                     )
+                    st.session_state["_plt_custom"] = []
                     st.success(
-                        f"✅ Panel **{grupo.nombre}** creado con {len(mats)} analitos. "
-                        f"Ahora vaya a la pestaña **📦 Lotes** para registrar los valores objetivo de cada parámetro."
+                        f"✅ Panel **{grupo.nombre}** creado con **{len(mats)} parámetros**. "
+                        f"Vaya a **📦 Lotes** para registrar los valores objetivo."
                     )
                     st.rerun()
                 except Exception as e:
