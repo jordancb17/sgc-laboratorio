@@ -1,60 +1,68 @@
 import streamlit as st
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Streamlit expone estas variables CSS en :root y las cambia al cambiar tema:
+#   --background-color          (fondo principal)
+#   --secondary-background-color (superficies / cards)
+#   --text-color                (texto principal)
+#   --primary-color             (color de acento / brand)
+#
+# Toda la paleta del sistema se deriva de esas cuatro variables,
+# por lo que el tema claro/oscuro funciona automáticamente.
+# El único elemento "constante" es el sidebar (siempre azul marino oscuro)
+# como decisión de diseño de identidad clínica.
+# ──────────────────────────────────────────────────────────────────────────────
+
 MAIN_CSS = """
 <style>
-/* ══════════════════════════════════════════════════════════════
-   VARIABLES — Se alimentan de los CSS vars nativos de Streamlit.
-   --background-color, --secondary-background-color, --text-color
-   y --primary-color los inyecta Streamlit y cambian
-   automáticamente al cambiar el tema (claro/oscuro).
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   VARIABLES — Todo derivado de los CSS vars de Streamlit (adaptables al tema)
+════════════════════════════════════════════════════════════════════════════ */
 :root {
-    /* Mapeo directo a vars de Streamlit con fallback dark */
-    --bg:           var(--background-color,          #050c1a);
-    --surface:      var(--secondary-background-color, #0d1f3c);
-    --brand:        var(--primary-color,              #0ea5e9);
-    --txt-primary:  var(--text-color,                 #e2e8f0);
+    /* ── Colores base: Streamlit los redefine al cambiar tema ── */
+    --bg:        var(--background-color,           #0f172a);
+    --surface:   var(--secondary-background-color, #1e293b);
+    --brand:     var(--primary-color,              #0ea5e9);
+    --txt:       var(--text-color,                 #e2e8f0);
 
-    /* Derivados con color-mix (funciona en todos los navegadores modernos) */
-    --surface-2:    color-mix(in srgb, var(--secondary-background-color, #0d1f3c) 80%, var(--background-color, #050c1a) 20%);
-    --txt-secondary:color-mix(in srgb, var(--text-color, #e2e8f0) 70%, transparent);
-    --txt-muted:    color-mix(in srgb, var(--text-color, #e2e8f0) 42%, transparent);
-    --brand-dark:   color-mix(in srgb, var(--primary-color, #0ea5e9) 75%, #000 25%);
+    /* ── Derivados: mezclas que funcionan en claro Y oscuro ── */
+    --surface-2:     color-mix(in srgb, var(--secondary-background-color,#1e293b) 70%, var(--background-color,#0f172a) 30%);
+    --txt-muted:     color-mix(in srgb, var(--text-color,#e2e8f0) 45%, transparent);
+    --txt-secondary: color-mix(in srgb, var(--text-color,#e2e8f0) 70%, transparent);
+    --brand-dim:     color-mix(in srgb, var(--primary-color,#0ea5e9) 80%, #000 20%);
+    --brand-faint:   color-mix(in srgb, var(--primary-color,#0ea5e9) 10%, transparent);
+    --border:        color-mix(in srgb, var(--text-color,#e2e8f0) 12%, transparent);
+    --border-soft:   color-mix(in srgb, var(--text-color,#e2e8f0)  6%, transparent);
 
-    /* Bordes: color del texto con opacidad → funciona en claro Y oscuro */
-    --border:       color-mix(in srgb, var(--text-color, #e2e8f0) 12%, transparent);
-    --border-soft:  color-mix(in srgb, var(--text-color, #e2e8f0)  6%, transparent);
-
-    /* Sombras siempre oscuras (visibles en ambos temas) */
-    --shadow-sm:    0 1px 4px rgba(0,0,0,0.20), 0 0 0 1px var(--border);
-    --shadow-md:    0 4px 16px rgba(0,0,0,0.26), 0 0 0 1px var(--border);
-    --shadow-lg:    0 8px 32px rgba(0,0,0,0.32);
+    /* ── Sombras: siempre oscuras (visibles en ambos temas) ── */
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.18), 0 0 0 1px var(--border);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.22), 0 0 0 1px var(--border);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.28);
 
     --radius:    14px;
     --radius-sm: 10px;
 
-    /* Constantes de marca — sidebar/nav siempre azul marino */
-    --navy:      #0a1628;
+    /* ── Sidebar: constante de identidad (siempre azul marino) ── */
+    --navy:      #050c1a;
     --navy-mid:  #0d2347;
     --navy-light:#1e3a5f;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    BASE
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; }
-
 html { scroll-behavior: smooth; }
 
 .stApp {
     background: var(--bg) !important;
     font-family: 'Inter', system-ui, sans-serif !important;
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   SIDEBAR — Azul marino clínico profesional
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   SIDEBAR — Azul marino clínico (siempre oscuro, independiente del tema)
+════════════════════════════════════════════════════════════════════════════ */
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg,
         #050c1a  0%,
@@ -75,8 +83,6 @@ section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
     color: #e2eaf4 !important;
 }
-
-/* Nav links */
 section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] a {
     border-radius: 10px !important;
     margin: 2px 10px !important;
@@ -88,7 +94,6 @@ section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] a {
     display: flex !important;
     align-items: center !important;
     gap: 9px !important;
-    letter-spacing: 0.01em !important;
 }
 section[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] a:hover {
     background: rgba(255,255,255,0.07) !important;
@@ -105,19 +110,19 @@ section[data-testid="stSidebar"] [aria-current="page"] {
     box-shadow: 0 2px 8px rgba(14,165,233,0.15) !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    LAYOUT
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 .main .block-container {
     padding: 1.5rem 2.5rem 3rem !important;
     max-width: 1600px !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   TIPOGRAFÍA PRINCIPAL
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   TIPOGRAFÍA — usa --txt para adaptarse al tema
+════════════════════════════════════════════════════════════════════════════ */
 h1 {
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
     font-weight: 800 !important;
     font-size: 1.7rem !important;
     letter-spacing: -0.03em !important;
@@ -125,7 +130,7 @@ h1 {
     line-height: 1.2 !important;
 }
 h2 {
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
     font-weight: 700 !important;
     font-size: 1.12rem !important;
     margin-top: 0.5rem !important;
@@ -135,22 +140,21 @@ h3 {
     color: var(--txt-secondary) !important;
     font-weight: 600 !important;
     font-size: 0.97rem !important;
-    letter-spacing: -0.005em !important;
 }
-p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
+p   { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    MÉTRICAS
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 [data-testid="metric-container"] {
     background: var(--surface) !important;
     border-radius: var(--radius) !important;
     padding: 1.2rem 1.4rem !important;
     box-shadow: var(--shadow-sm) !important;
     transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    border: 1px solid var(--border) !important;
     position: relative !important;
     overflow: hidden !important;
-    border: 1px solid var(--border) !important;
 }
 [data-testid="metric-container"]:hover {
     box-shadow: var(--shadow-md) !important;
@@ -161,13 +165,13 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
     position: absolute !important;
     top: 0; left: 0; right: 0 !important;
     height: 3px !important;
-    background: linear-gradient(90deg, var(--brand), #6366f1) !important;
+    background: linear-gradient(90deg, var(--brand), color-mix(in srgb,var(--brand) 60%,#6366f1)) !important;
     border-radius: var(--radius) var(--radius) 0 0 !important;
 }
 [data-testid="stMetricValue"] {
     font-size: 1.9rem !important;
     font-weight: 800 !important;
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
     letter-spacing: -0.03em !important;
     line-height: 1.15 !important;
 }
@@ -180,9 +184,9 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
 }
 [data-testid="stMetricDelta"] { font-size: 0.78rem !important; font-weight: 600 !important; }
 
-/* ══════════════════════════════════════════════════════════════
-   TABS — Pill moderno
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   TABS — adaptables al tema
+════════════════════════════════════════════════════════════════════════════ */
 .stTabs [data-baseweb="tab-list"] {
     gap: 3px !important;
     background: var(--surface) !important;
@@ -204,18 +208,19 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
 }
 .stTabs [data-baseweb="tab"]:hover {
     color: var(--brand) !important;
-    background: rgba(14,165,233,0.06) !important;
+    background: var(--brand-faint) !important;
 }
+/* Tab activo: usa brand — visible en claro Y oscuro */
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, var(--navy), var(--navy-mid)) !important;
-    color: white !important;
+    background: var(--brand) !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
-    box-shadow: 0 3px 10px rgba(10,22,40,0.28) !important;
+    box-shadow: 0 3px 10px color-mix(in srgb,var(--brand) 35%,transparent) !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   BOTONES
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   BOTONES — brand-based: funcionan en claro Y oscuro
+════════════════════════════════════════════════════════════════════════════ */
 .stButton > button {
     border-radius: var(--radius-sm) !important;
     font-weight: 600 !important;
@@ -224,15 +229,15 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
     letter-spacing: 0.01em !important;
 }
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #0a1f42 0%, #1a3a8f 100%) !important;
+    background: linear-gradient(135deg, var(--brand-dim) 0%, var(--brand) 100%) !important;
     border: none !important;
-    color: white !important;
-    box-shadow: 0 3px 10px rgba(10,22,66,0.35) !important;
+    color: #ffffff !important;
+    box-shadow: 0 3px 10px color-mix(in srgb,var(--brand) 35%,transparent) !important;
     padding: 0.55rem 1.4rem !important;
 }
 .stButton > button[kind="primary"]:hover {
-    background: linear-gradient(135deg, #0d2856 0%, #2145c5 100%) !important;
-    box-shadow: 0 6px 18px rgba(10,22,66,0.45) !important;
+    filter: brightness(1.12) !important;
+    box-shadow: 0 6px 18px color-mix(in srgb,var(--brand) 45%,transparent) !important;
     transform: translateY(-1px) !important;
 }
 .stButton > button[kind="secondary"] {
@@ -243,12 +248,12 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
 .stButton > button[kind="secondary"]:hover {
     border-color: var(--brand) !important;
     color: var(--brand) !important;
-    background: rgba(14,165,233,0.05) !important;
+    background: var(--brand-faint) !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   FORMULARIOS E INPUTS
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   INPUTS Y FORMULARIOS — adaptan fondo y texto al tema
+════════════════════════════════════════════════════════════════════════════ */
 [data-testid="stForm"] {
     background: var(--surface) !important;
     padding: 1.6rem 1.75rem !important;
@@ -263,7 +268,7 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
     border: 1.5px solid var(--border) !important;
     font-size: 0.88rem !important;
     background: var(--surface-2) !important;
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
     transition: border-color 0.18s, box-shadow 0.18s !important;
     padding: 10px 14px !important;
 }
@@ -271,14 +276,14 @@ p { color: var(--txt-secondary) !important; font-size: 0.9rem !important; }
 .stNumberInput > div > div > input:focus,
 .stTextArea textarea:focus {
     border-color: var(--brand) !important;
-    box-shadow: 0 0 0 3px rgba(14,165,233,0.14) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb,var(--brand) 14%,transparent) !important;
     background: var(--surface) !important;
 }
 .stSelectbox > div > div {
     border-radius: var(--radius-sm) !important;
     border: 1.5px solid var(--border) !important;
     background: var(--surface-2) !important;
-    color: var(--txt-primary) !important;
+    color: var(--txt) !important;
 }
 label {
     font-weight: 600 !important;
@@ -288,9 +293,9 @@ label {
     text-transform: uppercase !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    DATAFRAMES
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 [data-testid="stDataFrame"] {
     border-radius: var(--radius) !important;
     overflow: hidden !important;
@@ -298,9 +303,9 @@ label {
     border: 1px solid var(--border) !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    EXPANDERS
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 .streamlit-expanderHeader {
     background: var(--surface) !important;
     border-radius: var(--radius-sm) !important;
@@ -314,7 +319,7 @@ label {
 .streamlit-expanderHeader:hover {
     border-color: var(--brand) !important;
     color: var(--brand) !important;
-    background: rgba(14,165,233,0.04) !important;
+    background: var(--brand-faint) !important;
 }
 .streamlit-expanderContent {
     background: var(--surface-2) !important;
@@ -324,9 +329,9 @@ label {
     padding: 1rem !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    ALERTAS
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 [data-testid="stAlert"] {
     border-radius: var(--radius-sm) !important;
     font-size: 0.875rem !important;
@@ -335,9 +340,9 @@ label {
     border-style: solid !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    DIVISORES
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 hr {
     border: none !important;
     height: 1px !important;
@@ -349,9 +354,9 @@ hr {
     margin: 1.25rem 0 !important;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   WESTGARD — Cajas de resultado
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   WESTGARD — Cajas de resultado (semi-transparentes → visibles en ambos temas)
+════════════════════════════════════════════════════════════════════════════ */
 .wg-box {
     padding: 16px 20px;
     border-radius: var(--radius-sm);
@@ -362,14 +367,16 @@ hr {
     box-shadow: var(--shadow-sm);
     background: var(--surface);
 }
-/* Semi-transparentes → visibles en fondo claro Y oscuro */
-.wg-ok   { background:rgba(22,163,74,0.11);  border-left-color:#16a34a; color:color-mix(in srgb,#16a34a 70%,var(--txt-primary)); }
-.wg-warn { background:rgba(217,119,6,0.11);  border-left-color:#d97706; color:color-mix(in srgb,#d97706 70%,var(--txt-primary)); }
-.wg-rej  { background:rgba(220,38,38,0.11);  border-left-color:#dc2626; color:color-mix(in srgb,#dc2626 70%,var(--txt-primary)); }
+.wg-ok   { background: rgba(22,163,74,0.11);  border-left-color: #16a34a;
+           color: color-mix(in srgb,#16a34a 80%,var(--txt)); }
+.wg-warn { background: rgba(217,119,6,0.11);  border-left-color: #d97706;
+           color: color-mix(in srgb,#d97706 80%,var(--txt)); }
+.wg-rej  { background: rgba(220,38,38,0.11);  border-left-color: #dc2626;
+           color: color-mix(in srgb,#dc2626 80%,var(--txt)); }
 
-/* ══════════════════════════════════════════════════════════════
-   KPI CARDS HTML
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   KPI CARDS
+════════════════════════════════════════════════════════════════════════════ */
 .kpi-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -377,36 +384,21 @@ hr {
     box-shadow: var(--shadow-sm);
     text-align: center;
     transition: transform 0.22s, box-shadow 0.22s;
-    border-top: 4px solid;
     border: 1px solid var(--border);
     border-top-width: 4px;
     height: 100%;
     position: relative;
     overflow: hidden;
 }
-.kpi-card::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg,rgba(255,255,255,0.03),transparent);
-    pointer-events: none;
-}
 .kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
-.kpi-card .kpi-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
-.kpi-card .kpi-value {
-    font-size: 2.2rem; font-weight: 800; line-height: 1;
-    margin-bottom: 6px; letter-spacing: -0.03em;
-    color: var(--txt-primary);
-}
-.kpi-card .kpi-label {
-    font-size: 0.68rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.1em;
-    color: var(--txt-muted);
-}
-.kpi-card .kpi-sub {
-    font-size: 0.75rem; margin-top: 8px;
-    color: var(--txt-muted);
-}
+.kpi-card .kpi-icon  { font-size: 2rem; margin-bottom: 10px; display: block; }
+.kpi-card .kpi-value { font-size: 2.2rem; font-weight: 800; line-height: 1;
+                        margin-bottom: 6px; letter-spacing: -0.03em;
+                        color: var(--txt); }
+.kpi-card .kpi-label { font-size: 0.68rem; font-weight: 700;
+                        text-transform: uppercase; letter-spacing: 0.1em;
+                        color: var(--txt-muted); }
+.kpi-card .kpi-sub   { font-size: 0.75rem; margin-top: 8px; color: var(--txt-muted); }
 .kpi-blue  { border-top-color: #0ea5e9; }
 .kpi-green { border-top-color: #10b981; }
 .kpi-amber { border-top-color: #f59e0b; }
@@ -416,12 +408,11 @@ hr {
 .kpi-indigo{ border-top-color: #6366f1; }
 .kpi-navy  { border-top-color: #1d4ed8; }
 
-/* KPI sólidas — estilo referencia */
+/* KPI sólidas */
 .kpi-solid { border: none !important; border-top: none !important; }
 .kpi-solid .kpi-value,
 .kpi-solid .kpi-label,
 .kpi-solid .kpi-sub { color: rgba(255,255,255,0.9) !important; }
-.kpi-solid .kpi-icon { filter: brightness(1.3); }
 .kpi-s-blue   { background: linear-gradient(135deg,#1d4ed8,#2563eb) !important; }
 .kpi-s-green  { background: linear-gradient(135deg,#15803d,#16a34a) !important; }
 .kpi-s-amber  { background: linear-gradient(135deg,#b45309,#d97706) !important; }
@@ -431,37 +422,26 @@ hr {
 .kpi-s-indigo { background: linear-gradient(135deg,#166534,#15803d) !important; }
 .kpi-s-navy   { background: linear-gradient(135deg,#1e3a8a,#1d4ed8) !important; }
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION HEADER — Gradiente marino
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   SECTION HEADER — usa superficie + borde brand (claro Y oscuro)
+════════════════════════════════════════════════════════════════════════════ */
 .section-header {
-    background: linear-gradient(135deg, #0a1628 0%, #0d2b6e 100%);
-    color: white;
+    background: var(--surface);
+    border-left: 4px solid var(--brand);
+    color: var(--txt);
     padding: 1.1rem 1.6rem;
-    border-radius: var(--radius);
+    border-radius: 0 var(--radius) var(--radius) 0;
     margin-bottom: 1.4rem;
-    box-shadow: 0 4px 20px rgba(10,22,40,0.3);
-    position: relative;
-    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--brand);
 }
-.section-header::before {
-    content: '';
-    position: absolute;
-    top: 0; right: 0; bottom: 0;
-    width: 40%;
-    background: radial-gradient(ellipse at right, rgba(56,189,248,0.12), transparent 70%);
-    pointer-events: none;
-}
-.section-header h2 { color: white !important; margin: 0 !important; font-size: 1.08rem !important; }
-.section-header p  {
-    color: rgba(255,255,255,0.62) !important;
-    margin: 5px 0 0 !important;
-    font-size: 0.8rem !important;
-}
+.section-header h2 { color: var(--txt) !important; margin: 0 !important; font-size: 1.08rem !important; }
+.section-header p  { color: var(--txt-muted) !important; margin: 5px 0 0 !important; font-size: 0.8rem !important; }
 
-/* ══════════════════════════════════════════════════════════════
-   PAGE HEADER — banner superior de cada página
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   PAGE HEADER
+════════════════════════════════════════════════════════════════════════════ */
 .page-header {
     display: flex;
     align-items: flex-start;
@@ -476,11 +456,10 @@ hr {
     flex-shrink: 0;
     filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));
 }
-.page-header .ph-text {}
 .page-header .ph-title {
     font-size: 1.55rem;
     font-weight: 800;
-    color: var(--txt-primary);
+    color: var(--txt);
     letter-spacing: -0.03em;
     line-height: 1.1;
     margin: 0 0 4px;
@@ -493,9 +472,9 @@ hr {
 }
 .page-header .ph-badge {
     display: inline-block;
-    background: linear-gradient(135deg,rgba(14,165,233,0.15),rgba(56,189,248,0.08));
+    background: var(--brand-faint);
     color: var(--brand);
-    border: 1px solid rgba(14,165,233,0.25);
+    border: 1px solid color-mix(in srgb,var(--brand) 30%,transparent);
     font-size: 0.65rem;
     font-weight: 700;
     padding: 3px 10px;
@@ -503,12 +482,11 @@ hr {
     letter-spacing: 0.08em;
     text-transform: uppercase;
     margin-top: 6px;
-    display: inline-block;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   SECTION CARD — contenedor para agrupar secciones
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   SECTION CARD
+════════════════════════════════════════════════════════════════════════════ */
 .section-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -526,14 +504,11 @@ hr {
     margin: 0 0 1rem;
     padding-bottom: 0.6rem;
     border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
-/* ══════════════════════════════════════════════════════════════
-   DIVISOR ELEGANTE
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   DIVISOR CON ETIQUETA
+════════════════════════════════════════════════════════════════════════════ */
 .divider {
     height: 1px;
     background: linear-gradient(90deg,transparent,var(--border) 20%,var(--border) 80%,transparent);
@@ -548,25 +523,33 @@ hr {
     content: ''; flex: 1; height: 1px; background: var(--border);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   BADGE de estado
-══════════════════════════════════════════════════════════════ */
-/* Badges: rgba semi-transparent → ambos temas */
-.badge-ok   { display:inline-block; background:rgba(16,185,129,0.14); color:color-mix(in srgb,#059669 60%,var(--txt-primary)); border:1px solid rgba(16,185,129,0.35); border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
-.badge-warn { display:inline-block; background:rgba(245,158,11,0.14); color:color-mix(in srgb,#d97706 60%,var(--txt-primary)); border:1px solid rgba(245,158,11,0.35); border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
-.badge-rej  { display:inline-block; background:rgba(239,68,68,0.14);  color:color-mix(in srgb,#dc2626 60%,var(--txt-primary)); border:1px solid rgba(239,68,68,0.35);  border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
+/* ════════════════════════════════════════════════════════════════════════════
+   BADGES DE ESTADO (semi-transparentes — visibles en claro Y oscuro)
+════════════════════════════════════════════════════════════════════════════ */
+.badge-ok   { display:inline-block; background:rgba(16,185,129,0.14);
+              color:color-mix(in srgb,#059669 80%,var(--txt));
+              border:1px solid rgba(16,185,129,0.35);
+              border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
+.badge-warn { display:inline-block; background:rgba(245,158,11,0.14);
+              color:color-mix(in srgb,#d97706 80%,var(--txt));
+              border:1px solid rgba(245,158,11,0.35);
+              border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
+.badge-rej  { display:inline-block; background:rgba(239,68,68,0.14);
+              color:color-mix(in srgb,#dc2626 80%,var(--txt));
+              border:1px solid rgba(239,68,68,0.35);
+              border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; }
 
-/* ══════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    TABLA DE ESTADÍSTICOS (EP15, Sigma)
-══════════════════════════════════════════════════════════════ */
+════════════════════════════════════════════════════════════════════════════ */
 .stat-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.875rem;
 }
 .stat-table th {
-    background: var(--navy-mid);
-    color: white;
+    background: var(--brand);
+    color: #ffffff;
     padding: 10px 14px;
     text-align: left;
     font-size: 0.72rem;
@@ -577,14 +560,14 @@ hr {
 .stat-table td {
     padding: 9px 14px;
     border-bottom: 1px solid var(--border);
-    color: var(--txt-primary);
+    color: var(--txt);
 }
 .stat-table tr:last-child td { border-bottom: none; }
 .stat-table tr:nth-child(even) td { background: var(--surface-2); }
 
-/* ══════════════════════════════════════════════════════════════
-   LOGIN
-══════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   LOGIN — fondo de marca, siempre oscuro
+════════════════════════════════════════════════════════════════════════════ */
 .login-wrapper {
     min-height: 100vh;
     background: linear-gradient(135deg, #050c1a 0%, #0d2347 50%, #0f3460 100%);
