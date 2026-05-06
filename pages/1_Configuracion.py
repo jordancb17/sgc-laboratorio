@@ -571,10 +571,18 @@ def _tab_grupos():
                 st.session_state["_confirm_del_grp"] = grp_id_sel
 
         if st.session_state.get("_confirm_del_grp") == grp_id_sel:
-            st.warning(f"⚠️ ¿Eliminar el grupo **{grp_obj.nombre}**? Los analitos NO se borran, solo se desvinculan del grupo.")
+            n_mats = len(mats_del_grupo)
+            st.warning(
+                f"⚠️ ¿Eliminar el grupo **{grp_obj.nombre}**? "
+                f"Tiene **{n_mats} analito(s)** asociado(s). Elige qué hacer con ellos:"
+            )
+            also_del = st.checkbox(
+                "🗑️ También eliminar los analitos del grupo (solo si no tienen historial de controles o lotes)",
+                key="chk_del_analitos",
+            )
             c1, c2 = st.columns(2)
-            if c1.button("✅ Sí, eliminar grupo", key="btn_grp_del_yes", type="primary", use_container_width=True):
-                ok, msg = crud.eliminar_grupo(db, grp_id_sel)
+            if c1.button("✅ Confirmar eliminación", key="btn_grp_del_yes", type="primary", use_container_width=True):
+                ok, msg = crud.eliminar_grupo(db, grp_id_sel, eliminar_analitos=also_del)
                 st.session_state.pop("_confirm_del_grp", None)
                 st.success(msg) if ok else st.error(msg)
                 st.rerun()
@@ -643,10 +651,10 @@ def _tab_analitos():
             "ID": m.id,
             "Área": m.equipo.area.nombre,
             "Equipo": m.equipo.nombre,
-            "Marca equipo": m.equipo.marca or "—",
             "Analito": m.analito,
-            "Proveedor": m.proveedor,
             "Unidad": m.unidad or "—",
+            "Proveedor": m.proveedor,
+            "Grupo / Panel": m.grupo.nombre if m.grupo else "—",
             "Material control": m.nombre_material or "—",
             "Estado": "✅" if m.activo else "⛔",
         } for m in materiales])
@@ -833,6 +841,7 @@ def _tab_lotes():
                             )
                             st.rerun()
 
+        # ── Registrar lote individual ─────────────────────────────────────────
         st.markdown("---")
         materiales = crud.listar_materiales(db)
         if not materiales:
@@ -840,91 +849,131 @@ def _tab_lotes():
             return
 
         mat_opts = {
-            f"{m.equipo.area.nombre} › {m.equipo.nombre} › {m.analito} [{m.proveedor}]": m.id
+            f"{m.equipo.area.nombre} › {m.analito} [{m.proveedor}]": m.id
             for m in materiales
         }
 
-        with st.expander("➕ Registrar Nuevo Lote", expanded=True):
+        with st.expander("➕ Registrar Nuevo Lote Individual", expanded=False):
             with st.form("form_lote"):
-                mat_sel = st.selectbox("Analito / Material de control *", list(mat_opts.keys()))
+                mat_sel = st.selectbox("Analito *", list(mat_opts.keys()))
                 col1, col2 = st.columns(2)
-                num_lote   = col1.text_input("Número de lote *", placeholder="ej. LOT-2024-001")
-                fecha_vto  = col2.date_input("Fecha de vencimiento *", min_value=date.today())
+                num_lote  = col1.text_input("N° de lote *", placeholder="ej. LOT-2024-001")
+                fecha_vto = col2.date_input("Fecha vencimiento *", min_value=date.today())
 
-                st.markdown("---")
-                st.markdown("**Niveles del lote** — complete los que correspondan:")
-
+                st.markdown("**Niveles** — active los que correspondan:")
+                nv_tabs_f = st.tabs(["Nivel 1", "Nivel 2", "Nivel 3"])
                 niveles_data = []
-                for nv in [1, 2, 3]:
-                    with st.expander(f"Nivel {nv}", expanded=(nv == 1)):
-                        activo_nv = st.checkbox(f"Incluir Nivel {nv}", value=(nv == 1), key=f"nv_activo_{nv}")
+                for nv, tab in enumerate(nv_tabs_f, 1):
+                    with tab:
+                        activo_nv = st.checkbox("Incluir", value=(nv == 1), key=f"nv_activo_{nv}")
                         if activo_nv:
                             c1, c2, c3, c4 = st.columns(4)
-                            media = c1.number_input("Media objetivo (X̄)", key=f"media_{nv}", format="%.4f",
-                                                    help="Valor central de referencia del fabricante")
-                            de    = c2.number_input("DE objetivo (s)", min_value=0.0001, key=f"de_{nv}", format="%.4f",
-                                                    help="Desviación estándar de referencia del fabricante")
-                            vmin  = c3.number_input("Valor mínimo", key=f"vmin_{nv}", format="%.4f",
-                                                    help="Límite inferior aceptable (suele ser X̄ − 3s)")
-                            vmax  = c4.number_input("Valor máximo", key=f"vmax_{nv}", format="%.4f",
-                                                    help="Límite superior aceptable (suele ser X̄ + 3s)")
+                            media = c1.number_input("X̄ (Media)", key=f"media_{nv}", format="%.4f")
+                            de    = c2.number_input("s (DE)", min_value=0.0001, key=f"de_{nv}", format="%.4f")
+                            vmin  = c3.number_input("Mín", key=f"vmin_{nv}", format="%.4f")
+                            vmax  = c4.number_input("Máx", key=f"vmax_{nv}", format="%.4f")
                             niveles_data.append({"nivel": nv, "media": media, "de": de, "min": vmin, "max": vmax})
 
-                submitted = st.form_submit_button("💾 Guardar Lote", type="primary", use_container_width=True)
-                if submitted:
+                if st.form_submit_button("💾 Guardar Lote", type="primary", use_container_width=True):
                     if not num_lote.strip():
                         st.error("El número de lote es obligatorio.")
                     elif not niveles_data:
-                        st.error("Debe incluir al menos un nivel.")
+                        st.error("Active al menos un nivel.")
+                    elif any(nv["de"] <= 0 for nv in niveles_data):
+                        st.error("La DE debe ser > 0 en todos los niveles activos.")
                     else:
-                        invalidos = [nv for nv in niveles_data if nv["de"] <= 0]
-                        if invalidos:
-                            st.error("La DE debe ser mayor a 0 en todos los niveles.")
-                        else:
-                            try:
-                                crud.crear_lote(db, mat_opts[mat_sel], num_lote, fecha_vto, niveles_data)
-                                st.success(f"✅ Lote **{num_lote}** registrado correctamente.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al guardar: {e}")
+                        try:
+                            crud.crear_lote(db, mat_opts[mat_sel], num_lote, fecha_vto, niveles_data)
+                            st.success(f"✅ Lote **{num_lote}** registrado.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
 
+        # ── Gestión de lotes: ver, activar, desactivar, eliminar ─────────────
         st.markdown("---")
-        _section_title("📋 Lotes Registrados", "Consulte los lotes y sus parámetros estadísticos por nivel.")
-        mat_filtro = st.selectbox("Ver lotes de:", list(mat_opts.keys()), key="filtro_lote")
+        _section_title("📋 Gestión de Lotes por Analito",
+                       "Seleccione el analito y marque qué lote está en uso. Solo un lote puede estar activo a la vez.")
+
+        mat_filtro = st.selectbox("Analito:", list(mat_opts.keys()), key="filtro_lote",
+                                  label_visibility="collapsed")
         lotes = crud.listar_lotes(db, mat_opts[mat_filtro], solo_activos=False)
 
         if not lotes:
             _empty_state("No hay lotes registrados para este analito.")
             return
 
-        filas = []
         hoy = date.today()
         for lote in lotes:
-            dias_vto = (lote.fecha_vencimiento - hoy).days
-            if dias_vto < 0:
-                estado_vto = "⛔ Vencido"
-            elif dias_vto <= 30:
-                estado_vto = f"⚠️ Vence en {dias_vto}d"
-            else:
-                estado_vto = f"✅ Vigente ({dias_vto}d)"
+            dias = (lote.fecha_vencimiento - hoy).days
+            es_vencido = dias < 0
+            en_uso = lote.activo and not es_vencido
 
-            for nv in lote.niveles:
-                filas.append({
-                    "Lote": lote.numero_lote,
-                    "Vencimiento": lote.fecha_vencimiento.strftime("%d/%m/%Y"),
-                    "Estado": estado_vto,
-                    "Nivel": nv.nivel,
-                    "Media (X̄)": round(nv.media, 4),
-                    "DE (s)": round(nv.de, 4),
-                    "CV%": round(nv.de / nv.media * 100, 2) if nv.media else "—",
-                    "Mín": round(nv.valor_minimo, 4),
-                    "Máx": round(nv.valor_maximo, 4),
-                    "+2s": round(nv.media + 2 * nv.de, 4),
-                    "-2s": round(nv.media - 2 * nv.de, 4),
-                    "+3s": round(nv.media + 3 * nv.de, 4),
-                    "-3s": round(nv.media - 3 * nv.de, 4),
-                })
-        st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
+            # Badges de estado
+            if en_uso:
+                badge = "🟢 **En uso**"
+            elif lote.activo and es_vencido:
+                badge = "🔴 **Vencido** *(activo)*"
+            else:
+                badge = "⚫ *Inactivo*"
+
+            if dias < 0:
+                vto_str = f"⛔ Venció hace {abs(dias)} días"
+            elif dias <= 30:
+                vto_str = f"⚠️ Vence en {dias} días"
+            else:
+                vto_str = f"✅ Vence {lote.fecha_vencimiento.strftime('%d/%m/%Y')} ({dias}d)"
+
+            c_nom, c_vto, c_niv, c_act, c_del = st.columns([2.5, 2.8, 0.8, 1.5, 0.6])
+            c_nom.markdown(f"**{lote.numero_lote}**  {badge}")
+            c_vto.caption(vto_str)
+            c_niv.caption(f"{len(lote.niveles)} niv.")
+
+            if lote.activo:
+                if c_act.button("⏸ Desactivar", key=f"deact_{lote.id}", use_container_width=True):
+                    crud.toggle_activo_lote(db, lote.id)
+                    st.rerun()
+            else:
+                if c_act.button("▶ Activar", key=f"act_{lote.id}", type="primary", use_container_width=True):
+                    crud.activar_lote(db, lote.id)
+                    st.rerun()
+
+            if c_del.button("🗑️", key=f"del_lote_{lote.id}", use_container_width=True,
+                            help="Eliminar lote (solo si no tiene controles registrados)"):
+                st.session_state[f"_confirm_lote_{lote.id}"] = True
+
+            # Confirmación de eliminación
+            if st.session_state.get(f"_confirm_lote_{lote.id}"):
+                st.warning(f"¿Eliminar **{lote.numero_lote}**? Esta acción no se puede deshacer.")
+                cc1, cc2 = st.columns(2)
+                if cc1.button("✅ Sí, eliminar", key=f"yes_lote_{lote.id}", type="primary", use_container_width=True):
+                    ok, msg = crud.eliminar_lote(db, lote.id)
+                    st.session_state.pop(f"_confirm_lote_{lote.id}", None)
+                    st.success(msg) if ok else st.error(msg)
+                    st.rerun()
+                if cc2.button("❌ Cancelar", key=f"no_lote_{lote.id}", use_container_width=True):
+                    st.session_state.pop(f"_confirm_lote_{lote.id}", None)
+                    st.rerun()
+
+            # Detalle de niveles plegable
+            if lote.niveles:
+                with st.expander(f"📊 Estadísticos — {lote.numero_lote}", expanded=False):
+                    filas_nv = []
+                    for nv in sorted(lote.niveles, key=lambda x: x.nivel):
+                        filas_nv.append({
+                            "Nivel": nv.nivel,
+                            "X̄ (Media)": round(nv.media, 4),
+                            "s (DE)": round(nv.de, 4),
+                            "CV%": round(nv.de / nv.media * 100, 2) if nv.media else "—",
+                            "+2s": round(nv.media + 2 * nv.de, 4),
+                            "-2s": round(nv.media - 2 * nv.de, 4),
+                            "+3s": round(nv.media + 3 * nv.de, 4),
+                            "-3s": round(nv.media - 3 * nv.de, 4),
+                            "Mín": round(nv.valor_minimo, 4),
+                            "Máx": round(nv.valor_maximo, 4),
+                        })
+                    st.dataframe(pd.DataFrame(filas_nv), use_container_width=True, hide_index=True)
+
+            st.divider()
     finally:
         db.close()
 

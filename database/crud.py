@@ -258,18 +258,42 @@ def toggle_activo_grupo(db: Session, grupo_id: int) -> bool:
     return False
 
 
-def eliminar_grupo(db: Session, grupo_id: int) -> tuple[bool, str]:
-    """Elimina el grupo desvinculando sus analitos (no los elimina)."""
+def eliminar_grupo(db: Session, grupo_id: int, eliminar_analitos: bool = False) -> tuple[bool, str]:
+    """
+    Elimina el grupo.
+    Si eliminar_analitos=True también borra los MaterialControl del grupo (si no tienen controles).
+    Si eliminar_analitos=False los desvincula (grupo_id=None) pero los conserva.
+    """
     g = db.get(GrupoAnalitos, grupo_id)
     if not g:
         return False, "Grupo no encontrado."
     mats = db.scalars(select(MaterialControl).where(MaterialControl.grupo_id == grupo_id)).all()
-    for m in mats:
-        m.grupo_id = None
-    db.delete(g)
-    db.commit()
     n = len(mats)
-    return True, f"Grupo eliminado. {n} analito(s) desvinculado(s) (no borrados)."
+    if eliminar_analitos:
+        eliminados = 0
+        no_eliminados = 0
+        for m in mats:
+            # Solo borra si no tiene controles ni lotes
+            tiene_ctrl = db.scalars(select(ControlDiario).where(ControlDiario.material_id == m.id)).first()
+            tiene_lote = db.scalars(select(Lote).where(Lote.material_id == m.id)).first()
+            if tiene_ctrl or tiene_lote:
+                m.grupo_id = None  # desvincula en lugar de borrar
+                no_eliminados += 1
+            else:
+                db.delete(m)
+                eliminados += 1
+        db.delete(g)
+        db.commit()
+        msg = f"Grupo eliminado. {eliminados} analito(s) borrado(s)"
+        if no_eliminados:
+            msg += f", {no_eliminados} conservado(s) por tener historial (solo desvinculados)."
+        return True, msg
+    else:
+        for m in mats:
+            m.grupo_id = None
+        db.delete(g)
+        db.commit()
+        return True, f"Grupo eliminado. {n} analito(s) desvinculado(s) del grupo (se conservan en Analitos)."
 
 
 def crear_panel_desde_plantilla(
@@ -400,7 +424,8 @@ def eliminar_material(db: Session, material_id: int) -> tuple[bool, str]:
 # LOTES Y NIVELES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def listar_lotes(db: Session, material_id: int, solo_activos: bool = True) -> list[Lote]:
+def listar_lotes(db: Session, material_id: int, solo_activos: bool = False) -> list[Lote]:
+    """Devuelve todos los lotes de un material (por defecto incluye activos e inactivos)."""
     stmt = (
         select(Lote)
         .options(selectinload(Lote.niveles))
@@ -409,6 +434,44 @@ def listar_lotes(db: Session, material_id: int, solo_activos: bool = True) -> li
     if solo_activos:
         stmt = stmt.where(Lote.activo == True)
     return list(db.scalars(stmt.order_by(Lote.fecha_vencimiento.desc())))
+
+
+def activar_lote(db: Session, lote_id: int) -> bool:
+    """Marca este lote como activo y desactiva todos los demás del mismo material (one-at-a-time)."""
+    lote = db.get(Lote, lote_id)
+    if not lote:
+        return False
+    # Desactivar todos los demás del mismo material
+    otros = db.scalars(
+        select(Lote).where(Lote.material_id == lote.material_id, Lote.id != lote_id)
+    ).all()
+    for o in otros:
+        o.activo = False
+    lote.activo = True
+    db.commit()
+    return True
+
+
+def toggle_activo_lote(db: Session, lote_id: int) -> bool:
+    lote = db.get(Lote, lote_id)
+    if lote:
+        lote.activo = not lote.activo
+        db.commit()
+        return lote.activo
+    return False
+
+
+def eliminar_lote(db: Session, lote_id: int) -> tuple[bool, str]:
+    """Elimina un lote sólo si no tiene controles registrados."""
+    lote = db.get(Lote, lote_id)
+    if not lote:
+        return False, "Lote no encontrado."
+    tiene = db.scalars(select(ControlDiario).where(ControlDiario.lote_id == lote_id)).first()
+    if tiene:
+        return False, "No se puede eliminar: el lote tiene controles registrados. Desactívelo en su lugar."
+    db.delete(lote)
+    db.commit()
+    return True, "Lote eliminado correctamente."
 
 
 def crear_lote(
