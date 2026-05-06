@@ -5,7 +5,7 @@ Usa SQLAlchemy 2.x nativo: select() + db.scalars() / db.get()
 
 from datetime import date, time, datetime, timedelta
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import select, and_, exists
 
 from .models import (
@@ -81,7 +81,7 @@ def eliminar_area(db: Session, area_id: int) -> tuple[bool, str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_equipos(db: Session, area_id: Optional[int] = None, solo_activos: bool = True) -> list[Equipo]:
-    stmt = select(Equipo)
+    stmt = select(Equipo).options(joinedload(Equipo.area))
     if area_id:
         stmt = stmt.where(Equipo.area_id == area_id)
     if solo_activos:
@@ -219,7 +219,10 @@ def eliminar_personal(db: Session, personal_id: int) -> tuple[bool, str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_grupos(db: Session, equipo_id: Optional[int] = None, solo_activos: bool = True) -> list[GrupoAnalitos]:
-    stmt = select(GrupoAnalitos)
+    stmt = select(GrupoAnalitos).options(
+        joinedload(GrupoAnalitos.equipo).joinedload(Equipo.area),
+        selectinload(GrupoAnalitos.materiales),   # colección → selectinload evita duplicados
+    )
     if equipo_id:
         stmt = stmt.where(GrupoAnalitos.equipo_id == equipo_id)
     if solo_activos:
@@ -302,12 +305,15 @@ def crear_panel_desde_plantilla(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_materiales(db: Session, equipo_id: Optional[int] = None, solo_activos: bool = True) -> list[MaterialControl]:
-    stmt = select(MaterialControl)
+    stmt = select(MaterialControl).options(
+        joinedload(MaterialControl.equipo).joinedload(Equipo.area),
+        joinedload(MaterialControl.grupo),
+    )
     if equipo_id:
         stmt = stmt.where(MaterialControl.equipo_id == equipo_id)
     if solo_activos:
         stmt = stmt.where(MaterialControl.activo == True)
-    return list(db.scalars(stmt.order_by(MaterialControl.analito)))
+    return list(db.scalars(stmt.order_by(MaterialControl.analito)).unique())
 
 
 def crear_material(
@@ -395,7 +401,11 @@ def eliminar_material(db: Session, material_id: int) -> tuple[bool, str]:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def listar_lotes(db: Session, material_id: int, solo_activos: bool = True) -> list[Lote]:
-    stmt = select(Lote).where(Lote.material_id == material_id)
+    stmt = (
+        select(Lote)
+        .options(selectinload(Lote.niveles))
+        .where(Lote.material_id == material_id)
+    )
     if solo_activos:
         stmt = stmt.where(Lote.activo == True)
     return list(db.scalars(stmt.order_by(Lote.fecha_vencimiento.desc())))
@@ -501,12 +511,13 @@ def material_ids_con_lote_activo(db: Session) -> set:
 
 
 def get_lotes_activos_bulk(db: Session, material_ids: list) -> dict:
-    """Una sola query: devuelve {material_id: Lote} para todos los ids dados."""
+    """Una sola query: devuelve {material_id: Lote} para todos los ids dados (con niveles precargados)."""
     if not material_ids:
         return {}
     hoy = date.today()
     stmt = (
         select(Lote)
+        .options(selectinload(Lote.niveles))
         .where(
             Lote.material_id.in_(material_ids),
             Lote.activo == True,
@@ -687,7 +698,14 @@ def listar_controles_diarios(
     nivel: Optional[int] = None,
     personal_id: Optional[int] = None,
 ) -> list[ControlDiario]:
-    stmt = select(ControlDiario)
+    stmt = select(ControlDiario).options(
+        joinedload(ControlDiario.material)
+            .joinedload(MaterialControl.equipo)
+            .joinedload(Equipo.area),
+        joinedload(ControlDiario.nivel_lote),
+        joinedload(ControlDiario.personal),
+        joinedload(ControlDiario.accion_correctiva),
+    )
     if material_id:
         stmt = stmt.where(ControlDiario.material_id == material_id)
     if fecha_desde:
@@ -695,10 +713,12 @@ def listar_controles_diarios(
     if fecha_hasta:
         stmt = stmt.where(ControlDiario.fecha <= fecha_hasta)
     if nivel is not None:
-        stmt = stmt.join(NivelLote).where(NivelLote.nivel == nivel)
+        stmt = stmt.join(NivelLote, ControlDiario.nivel_lote_id == NivelLote.id).where(NivelLote.nivel == nivel)
     if personal_id:
         stmt = stmt.where(ControlDiario.personal_id == personal_id)
-    return list(db.scalars(stmt.order_by(ControlDiario.fecha.asc(), ControlDiario.hora.asc())))
+    return list(
+        db.scalars(stmt.order_by(ControlDiario.fecha.asc(), ControlDiario.hora.asc())).unique()
+    )
 
 
 def eliminar_control_diario(db: Session, control_id: int) -> bool:
@@ -967,14 +987,24 @@ def listar_acciones_correctivas(
     fecha_desde: Optional[date] = None,
     fecha_hasta: Optional[date] = None,
 ) -> list[AccionCorrectiva]:
-    stmt = select(AccionCorrectiva)
+    stmt = select(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.control)
+            .joinedload(ControlDiario.material)
+            .joinedload(MaterialControl.equipo)
+            .joinedload(Equipo.area),
+        joinedload(AccionCorrectiva.control)
+            .joinedload(ControlDiario.nivel_lote),
+        joinedload(AccionCorrectiva.personal),
+    )
     if resultado:
         stmt = stmt.where(AccionCorrectiva.resultado == resultado)
     if fecha_desde:
         stmt = stmt.where(AccionCorrectiva.fecha >= fecha_desde)
     if fecha_hasta:
         stmt = stmt.where(AccionCorrectiva.fecha <= fecha_hasta)
-    return list(db.scalars(stmt.order_by(AccionCorrectiva.fecha.desc(), AccionCorrectiva.hora.desc())))
+    return list(
+        db.scalars(stmt.order_by(AccionCorrectiva.fecha.desc(), AccionCorrectiva.hora.desc())).unique()
+    )
 
 
 def get_accion_correctiva_por_control(db: Session, control_id: int) -> Optional[AccionCorrectiva]:
@@ -986,13 +1016,20 @@ def controles_sin_accion_correctiva(db: Session) -> list[ControlDiario]:
     """Devuelve controles rechazados que aún no tienen acción correctiva registrada."""
     stmt = (
         select(ControlDiario)
+        .options(
+            joinedload(ControlDiario.material)
+                .joinedload(MaterialControl.equipo)
+                .joinedload(Equipo.area),
+            joinedload(ControlDiario.nivel_lote),
+            joinedload(ControlDiario.personal),
+        )
         .where(
             ControlDiario.resultado == "RECHAZO",
             ~exists().where(AccionCorrectiva.control_id == ControlDiario.id),
         )
         .order_by(ControlDiario.fecha.desc())
     )
-    return list(db.scalars(stmt))
+    return list(db.scalars(stmt).unique())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
