@@ -398,110 +398,64 @@ def _tab_grupos(db):
 
     # ── Crear desde plantilla predefinida ──────────────────────────────────────
     with st.expander("⚡ Crear Panel desde Plantilla", expanded=False):
-        st.info(
-            "Seleccione una plantilla, **marque solo los parámetros** que mide su equipo, "
-            "edite los nombres o unidades si su equipo los llama diferente, "
-            "y agregue los que no estén en la lista."
+        st.caption(
+            "Seleccione la plantilla, ajuste nombre/equipo/proveedor y luego edite la tabla: "
+            "desmarque ✓ para excluir, edite nombre o unidad, y use la última fila vacía para agregar parámetros extra."
         )
 
-        # ── Selectores superiores ────────────────────────────────────────────
         col1, col2 = st.columns(2)
-        plantilla_sel = col1.selectbox("Plantilla base", list(PANELES_PREDEFINIDOS.keys()), key="plt_sel")
-        eq_plantilla  = col2.selectbox("Equipo *", list(eq_opts.keys()), key="plt_eq")
-        col3, col4 = st.columns(2)
-        # Nombre sugerido = texto de la plantilla sin el emoji
-        _nom_sug = " ".join(plantilla_sel.split(" ")[1:]).split("—")[-1].strip() if "—" in plantilla_sel else " ".join(plantilla_sel.split(" ")[1:])
+        plantilla_sel    = col1.selectbox("Plantilla base", list(PANELES_PREDEFINIDOS.keys()), key="plt_sel")
+        eq_plantilla     = col2.selectbox("Equipo *", list(eq_opts.keys()), key="plt_eq")
+        col3, col4       = st.columns(2)
+        _nom_sug = " ".join(plantilla_sel.split(" ")[1:]).split("—")[-1].strip() if "—" in plantilla_sel \
+                   else " ".join(plantilla_sel.split(" ")[1:])
         nombre_grupo_plt = col3.text_input("Nombre del grupo *", value=_nom_sug, key="plt_nombre")
         proveedor_plt    = col4.text_input("Proveedor material de control *",
                                            placeholder="ej. Bio-Rad, Roche, Sysmex", key="plt_prov")
         desc_plt = st.text_input("Descripción (opcional)", key="plt_desc")
 
-        # Resetear parámetros personalizados al cambiar de plantilla
-        if st.session_state.get("_plt_last") != plantilla_sel:
-            st.session_state["_plt_last"]   = plantilla_sel
-            st.session_state["_plt_custom"] = []
-
-        params_base = PANELES_PREDEFINIDOS[plantilla_sel]
-
-        # ── Tabla editable de parámetros de la plantilla ─────────────────────
-        st.markdown(f"**Parámetros de la plantilla** — marque los que aplican a su equipo ({len(params_base)} en total):")
-
-        h0, h1, h2 = st.columns([0.5, 4, 2])
-        h0.caption("✓")
-        h1.caption("Nombre del analito (editable)")
-        h2.caption("Unidad (editable)")
-
-        params_seleccionados = []
-        for i, (nom_def, uni_def) in enumerate(params_base):
-            c0, c1, c2 = st.columns([0.5, 4, 2])
-            incluido = c0.checkbox("", value=True, key=f"plt_chk_{i}", label_visibility="collapsed")
-            nom_edit = c1.text_input("n", value=nom_def, key=f"plt_nom_{i}", label_visibility="collapsed",
-                                     disabled=not incluido)
-            uni_edit = c2.text_input("u", value=uni_def, key=f"plt_uni_{i}", label_visibility="collapsed",
-                                     disabled=not incluido)
-            if incluido:
-                params_seleccionados.append((nom_edit.strip(), uni_edit.strip()))
-
-        # ── Parámetros personalizados (los que no están en la plantilla) ──────
-        st.markdown("---")
-        st.markdown("**Agregar parámetros que no están en la plantilla** (ej. parámetros exclusivos de su equipo):")
-
-        custom_params = st.session_state.get("_plt_custom", [])
-
-        # Listar los ya agregados
-        if custom_params:
-            for j, (cn, cu) in enumerate(custom_params):
-                cj0, cj1, cj2, cj3 = st.columns([0.5, 4, 2, 0.5])
-                cj0.markdown("✅")
-                cj1.markdown(f"**{cn}**")
-                cj2.markdown(f"`{cu or '—'}`")
-                if cj3.button("🗑️", key=f"plt_del_cp_{j}", help="Quitar"):
-                    custom_params.pop(j)
-                    st.session_state["_plt_custom"] = custom_params
-                    st.rerun()
-
-        # Input para nuevo parámetro
-        na0, na1, na2, na3 = st.columns([0.5, 4, 2, 0.5])
-        nuevo_nom_p = na1.text_input("Nombre", key="plt_cp_nom",
-                                     placeholder="ej. Granulocitos Inmaduros #",
-                                     label_visibility="collapsed")
-        nuevo_uni_p = na2.text_input("Unidad", key="plt_cp_uni",
-                                     placeholder="ej. ×10³/µL",
-                                     label_visibility="collapsed")
-        if na3.button("➕", key="plt_btn_add_cp", help="Agregar parámetro"):
-            if nuevo_nom_p.strip():
-                custom_params.append((nuevo_nom_p.strip(), nuevo_uni_p.strip()))
-                st.session_state["_plt_custom"] = custom_params
-                st.rerun()
-            else:
-                st.warning("Escriba el nombre del parámetro antes de agregar.")
-
-        # ── Resumen y botón crear ─────────────────────────────────────────────
-        todos_params = params_seleccionados + custom_params
-        st.markdown("---")
-        col_res, col_btn = st.columns([3, 1])
-        col_res.info(
-            f"✅ **{len(params_seleccionados)}** de la plantilla   +   "
-            f"➕ **{len(custom_params)}** personalizados   =   "
-            f"**{len(todos_params)} parámetros** en total"
+        # Un solo data_editor reemplaza N checkboxes + N*2 text_inputs
+        params_base  = PANELES_PREDEFINIDOS[plantilla_sel]
+        df_template  = pd.DataFrame(
+            [{"✓": True, "Parámetro": n, "Unidad": u} for n, u in params_base]
         )
+        edited_tpl = st.data_editor(
+            df_template,
+            column_config={
+                "✓":         st.column_config.CheckboxColumn("✓",         default=True, width="small"),
+                "Parámetro": st.column_config.TextColumn("Parámetro",     width="large"),
+                "Unidad":    st.column_config.TextColumn("Unidad (editable)", width="medium"),
+            },
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",                         # última fila vacía = agregar param extra
+            key=f"plt_editor_{plantilla_sel}",          # cambia de plantilla → tabla se resetea
+        )
+
+        params_finales = [
+            (str(r["Parámetro"]).strip(), str(r["Unidad"]).strip())
+            for _, r in edited_tpl.iterrows()
+            if r["✓"] and str(r.get("Parámetro", "")).strip()
+        ]
+
+        col_info, col_btn = st.columns([3, 1])
+        col_info.info(f"**{len(params_finales)} parámetros** listos para crear")
         if col_btn.button("🚀 Crear Panel", type="primary", key="btn_crear_plantilla", use_container_width=True):
             if not nombre_grupo_plt.strip():
                 st.error("El nombre del grupo es obligatorio.")
             elif not proveedor_plt.strip():
-                st.error("El proveedor del material de control es obligatorio.")
-            elif not todos_params:
-                st.error("Seleccione al menos un parámetro.")
+                st.error("El proveedor es obligatorio.")
+            elif not params_finales:
+                st.error("Marque al menos un parámetro.")
             else:
                 try:
                     grupo, mats = crud.crear_panel_desde_plantilla(
                         db, eq_opts[eq_plantilla],
-                        nombre_grupo_plt, desc_plt, proveedor_plt, todos_params,
+                        nombre_grupo_plt, desc_plt, proveedor_plt, params_finales,
                     )
-                    st.session_state["_plt_custom"] = []
                     st.success(
                         f"✅ Panel **{grupo.nombre}** creado con **{len(mats)} parámetros**. "
-                        f"Vaya a **📦 Lotes** para registrar los valores objetivo."
+                        "Vaya a **📦 Lotes** para registrar los valores objetivo."
                     )
                     st.rerun()
                 except Exception as e:
@@ -532,9 +486,11 @@ def _tab_grupos(db):
         return
 
     st.markdown(f"**{len(grupos)} grupo(s) registrado(s)**")
+    # Batch query: evita N consultas individuales de lote
+    ids_con_lote = crud.material_ids_con_lote_activo(db)
     filas_g = []
     for g in grupos:
-        mats_g = [m for m in g.materiales]
+        mats_g = list(g.materiales)
         filas_g.append({
             "ID": g.id,
             "Equipo": g.equipo.nombre,
@@ -542,7 +498,7 @@ def _tab_grupos(db):
             "Grupo / Panel": g.nombre,
             "Descripción": g.descripcion or "—",
             "Analitos": len(mats_g),
-            "Con lote": sum(1 for m in mats_g if crud.get_lote_activo(db, m.id)),
+            "Con lote ✅": sum(1 for m in mats_g if m.id in ids_con_lote),
             "Estado": "✅ Activo" if g.activo else "⛔ Inactivo",
         })
     st.dataframe(pd.DataFrame(filas_g), use_container_width=True, hide_index=True)
@@ -558,13 +514,14 @@ def _tab_grupos(db):
     grp_id_sel = grp_opts[sel_g]
     grp_obj = next(g for g in grupos if g.id == grp_id_sel)
 
-    # Analitos del grupo
-    mats_del_grupo = [m for m in grp_obj.materiales]
+    # Analitos del grupo — batch query para lotes
+    mats_del_grupo = list(grp_obj.materiales)
     if mats_del_grupo:
         st.markdown(f"**Parámetros de «{grp_obj.nombre}»** — {len(mats_del_grupo)} analitos:")
+        lotes_bulk = crud.get_lotes_activos_bulk(db, [m.id for m in mats_del_grupo])
         filas_m = []
         for m in mats_del_grupo:
-            lote_a = crud.get_lote_activo(db, m.id)
+            lote_a = lotes_bulk.get(m.id)
             filas_m.append({
                 "Analito": m.analito,
                 "Unidad": m.unidad or "—",
@@ -796,55 +753,65 @@ def _tab_lotes(db):
             mats_grp_activos = [m for m in grp_lote_obj.materiales if m.activo]
 
             col1, col2, col3 = st.columns(3)
-            num_lote_g   = col1.text_input("Número de lote *", placeholder="ej. LOT-2025-001", key="gl_num")
-            fecha_vto_g  = col2.date_input("Fecha de vencimiento *", min_value=date.today(), key="gl_fecha")
-            n_niveles_g  = col3.selectbox("Niveles a registrar *", [1, 2, 3], key="gl_niv")
+            num_lote_g  = col1.text_input("Número de lote *", placeholder="ej. LOT-2025-001", key="gl_num")
+            fecha_vto_g = col2.date_input("Fecha de vencimiento *", min_value=date.today(), key="gl_fecha")
+            n_niveles_g = col3.selectbox("Niveles a registrar *", [1, 2, 3], key="gl_niv")
 
-            st.markdown(f"**Complete los valores objetivo para cada parámetro de «{grp_lote_obj.nombre}»:**")
+            st.caption(f"Complete los valores objetivo de los {len(mats_grp_activos)} parámetros de «{grp_lote_obj.nombre}»:")
 
-            # Cabecera de columnas
-            header_cols = st.columns([2] + [1, 1, 1, 1] * n_niveles_g)
-            header_cols[0].markdown("**Analito (unidad)**")
+            # Un data_editor por nivel — reemplaza N×4×niveles number_inputs
+            nivel_editors = {}
+            _col_cfg = {
+                "Analito": st.column_config.TextColumn("Analito",  disabled=True, width="medium"),
+                "Unidad":  st.column_config.TextColumn("Unidad",   disabled=True, width="small"),
+                "X̄ (Media)":  st.column_config.NumberColumn("X̄ (Media)",  format="%.4f", width="small"),
+                "s (DE)":      st.column_config.NumberColumn("s (DE)",  min_value=0.0001, format="%.4f", width="small"),
+                "Mín":         st.column_config.NumberColumn("Mín",     format="%.4f", width="small"),
+                "Máx":         st.column_config.NumberColumn("Máx",     format="%.4f", width="small"),
+            }
+            nv_tabs = st.tabs([f"Nivel {n+1}" for n in range(n_niveles_g)])
             for nv_i in range(n_niveles_g):
-                base = 1 + nv_i * 4
-                header_cols[base].markdown(f"**L{nv_i+1} — X̄**")
-                header_cols[base+1].markdown(f"**L{nv_i+1} — s**")
-                header_cols[base+2].markdown(f"**L{nv_i+1} — Mín**")
-                header_cols[base+3].markdown(f"**L{nv_i+1} — Máx**")
-
-            targets_g = {}
-            for m in mats_grp_activos:
-                row_cols = st.columns([2] + [1, 1, 1, 1] * n_niveles_g)
-                row_cols[0].markdown(f"**{m.analito}** ({m.unidad or '—'})")
-                niveles_data_g = []
-                for nv_i in range(n_niveles_g):
-                    base = 1 + nv_i * 4
-                    media_v = row_cols[base].number_input("X̄", format="%.4f",
-                                                          key=f"gl_m{m.id}_nv{nv_i+1}_media",
-                                                          label_visibility="collapsed")
-                    de_v    = row_cols[base+1].number_input("s", min_value=0.0001, format="%.4f",
-                                                            key=f"gl_m{m.id}_nv{nv_i+1}_de",
-                                                            label_visibility="collapsed")
-                    vmin_v  = row_cols[base+2].number_input("Mín", format="%.4f",
-                                                             key=f"gl_m{m.id}_nv{nv_i+1}_min",
-                                                             label_visibility="collapsed")
-                    vmax_v  = row_cols[base+3].number_input("Máx", format="%.4f",
-                                                             key=f"gl_m{m.id}_nv{nv_i+1}_max",
-                                                             label_visibility="collapsed")
-                    niveles_data_g.append({"nivel": nv_i+1, "media": media_v, "de": de_v,
-                                           "min": vmin_v, "max": vmax_v})
-                targets_g[m.id] = niveles_data_g
+                with nv_tabs[nv_i]:
+                    df_nv = pd.DataFrame([{
+                        "Analito":   m.analito,
+                        "Unidad":    m.unidad or "—",
+                        "X̄ (Media)": 0.0,
+                        "s (DE)":    0.0001,
+                        "Mín":       0.0,
+                        "Máx":       0.0,
+                    } for m in mats_grp_activos])
+                    nivel_editors[nv_i + 1] = st.data_editor(
+                        df_nv,
+                        column_config=_col_cfg,
+                        use_container_width=True,
+                        hide_index=True,
+                        num_rows="fixed",
+                        key=f"gl_ed_nv{nv_i}_{grp_lote_obj.id}",
+                    )
 
             if st.button("💾 Guardar Lote para Todo el Panel", type="primary", key="btn_gl_save"):
                 if not num_lote_g.strip():
                     st.error("El número de lote es obligatorio.")
                 else:
-                    invalidos = []
-                    for mat_id_g, nivs in targets_g.items():
-                        for nv in nivs:
-                            if nv["de"] <= 0:
-                                mat_name = next(m.analito for m in mats_grp_activos if m.id == mat_id_g)
-                                invalidos.append(f"{mat_name} Nivel {nv['nivel']}: DE debe ser > 0")
+                    # Construir targets desde los data_editors
+                    targets_g: dict = {}
+                    invalidos: list = []
+                    for nv_i, mat in enumerate(mats_grp_activos, 0):
+                        niveles_data_g = []
+                        for nv_num, df_ed in nivel_editors.items():
+                            row = df_ed.iloc[nv_i]
+                            de_val = float(row["s (DE)"])
+                            if de_val <= 0:
+                                invalidos.append(f"{mat.analito} Nivel {nv_num}: DE debe ser > 0")
+                            niveles_data_g.append({
+                                "nivel": nv_num,
+                                "media": float(row["X̄ (Media)"]),
+                                "de":    de_val,
+                                "min":   float(row["Mín"]),
+                                "max":   float(row["Máx"]),
+                            })
+                        targets_g[mat.id] = niveles_data_g
+
                     if invalidos:
                         for err in invalidos:
                             st.error(err)
@@ -856,7 +823,8 @@ def _tab_lotes(db):
                             for e in errores_g:
                                 st.error(e)
                         st.success(
-                            f"✅ Lote **{num_lote_g}** registrado para {creados_g} analito(s) del panel «{grp_lote_obj.nombre}»."
+                            f"✅ Lote **{num_lote_g}** registrado para {creados_g} analito(s) "
+                            f"del panel «{grp_lote_obj.nombre}»."
                         )
                         st.rerun()
 

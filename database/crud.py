@@ -490,6 +490,37 @@ def crear_lotes_grupo(
     return creados, errores
 
 
+def material_ids_con_lote_activo(db: Session) -> set:
+    """Una sola query: devuelve el set de material_ids que tienen lote activo vigente."""
+    hoy = date.today()
+    stmt = select(Lote.material_id).where(
+        Lote.activo == True,
+        Lote.fecha_vencimiento >= hoy,
+    ).distinct()
+    return set(db.scalars(stmt))
+
+
+def get_lotes_activos_bulk(db: Session, material_ids: list) -> dict:
+    """Una sola query: devuelve {material_id: Lote} para todos los ids dados."""
+    if not material_ids:
+        return {}
+    hoy = date.today()
+    stmt = (
+        select(Lote)
+        .where(
+            Lote.material_id.in_(material_ids),
+            Lote.activo == True,
+            Lote.fecha_vencimiento >= hoy,
+        )
+        .order_by(Lote.fecha_vencimiento.desc())
+    )
+    result: dict = {}
+    for lote in db.scalars(stmt).all():
+        if lote.material_id not in result:          # keep most-recent
+            result[lote.material_id] = lote
+    return result
+
+
 def get_lote_activo(db: Session, material_id: int) -> Optional[Lote]:
     """Devuelve el lote activo no vencido más reciente para un material."""
     hoy = date.today()

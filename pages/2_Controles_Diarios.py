@@ -262,156 +262,148 @@ def _tab_panel(db):
     pers_sel_p  = col4.selectbox("Personal *", list(pers_opts_p.keys()), key="pan_pers")
     comentario_p = st.text_input("Comentario general (opcional)", key="pan_coment")
 
-    # ── Preparar estructura de analitos / lotes / niveles ───────────────────
+    # ── Batch: un query para todos los lotes (sin N+1) ───────────────────────
     st.markdown("---")
+    lotes_bulk = crud.get_lotes_activos_bulk(db, [m.id for m in mats_panel])
+    sin_lote   = [m.analito for m in mats_panel if m.id not in lotes_bulk]
+    if sin_lote:
+        st.warning(f"⚠️ Sin lote activo: {', '.join(sin_lote)}. Regístrelos en ⚙️ Configuración → Lotes.")
 
-    # Para cada analito del panel: buscar lote activo y sus niveles
     filas_panel = []
     for m in mats_panel:
-        lote = crud.get_lote_activo(db, m.id)
+        lote = lotes_bulk.get(m.id)
         if not lote:
-            st.warning(f"⚠️ **{m.analito}**: sin lote activo. Regístrelo en ⚙️ Configuración → Lotes.")
             continue
-        niveles_map = {nv.nivel: nv for nv in lote.niveles}
-        filas_panel.append({"mat": m, "lote": lote, "niveles": niveles_map})
+        filas_panel.append({"mat": m, "lote": lote,
+                             "niveles": {nv.nivel: nv for nv in lote.niveles}})
 
     if not filas_panel:
         st.error("Ningún analito del panel tiene lote activo.")
         return
 
-    # Niveles disponibles en el panel (unión de todos los niveles existentes)
     niveles_disponibles = sorted({nv for fp in filas_panel for nv in fp["niveles"].keys()})
+    st.caption(
+        f"**{grupo_p.nombre}** — {len(filas_panel)} analito(s) con lote | "
+        f"Niveles: {', '.join(str(n) for n in niveles_disponibles)}"
+    )
 
-    st.markdown(f"**Panel: {grupo_p.nombre}** — {len(filas_panel)} analito(s) con lote activo | "
-                f"Niveles disponibles: {', '.join(f'N{n}' for n in niveles_disponibles)}")
-
-    # ── Tabla de ingreso por nivel (una tab por nivel) ───────────────────────
+    # ── data_editor por nivel — reemplaza N number_inputs ────────────────────
     nivel_tabs = st.tabs([f"📊 Nivel {n}" for n in niveles_disponibles])
-
-    resultados_guardados = []  # acumula éxitos entre niveles
+    _save_gen  = st.session_state.get("_pan_save_gen", 0)   # incrementar al guardar resetea el editor
 
     for tab_idx, nivel_num in enumerate(niveles_disponibles):
         with nivel_tabs[tab_idx]:
-            analitos_este_nivel = [fp for fp in filas_panel if nivel_num in fp["niveles"]]
-
-            if not analitos_este_nivel:
+            fps_nivel = [fp for fp in filas_panel if nivel_num in fp["niveles"]]
+            if not fps_nivel:
                 st.info(f"Ningún analito tiene configurado el Nivel {nivel_num}.")
                 continue
 
-            # Cabecera de la cuadrícula
-            h0, h1, h2, h3 = st.columns([2.5, 2, 1.8, 1.5])
-            h0.markdown("**Analito (unidad)**")
-            h1.markdown("**Referencia (X̄ ± s)**")
-            h2.markdown("**Valor medido**")
-            h3.markdown("**Westgard preview**")
+            df_entrada = pd.DataFrame([{
+                "Analito":       fp["mat"].analito,
+                "Unidad":        fp["mat"].unidad or "—",
+                "X̄":             fp["niveles"][nivel_num].media,
+                "s":             fp["niveles"][nivel_num].de,
+                "Rango":         f"{fp['niveles'][nivel_num].valor_minimo} – {fp['niveles'][nivel_num].valor_maximo}",
+                "Valor medido":  0.0,
+            } for fp in fps_nivel])
 
-            st.divider()
+            edited_nv = st.data_editor(
+                df_entrada,
+                column_config={
+                    "Analito":      st.column_config.TextColumn("Analito",       disabled=True, width="medium"),
+                    "Unidad":       st.column_config.TextColumn("Unidad",        disabled=True, width="small"),
+                    "X̄":            st.column_config.NumberColumn("X̄",           disabled=True, format="%.4f", width="small"),
+                    "s":            st.column_config.NumberColumn("s",            disabled=True, format="%.4f", width="small"),
+                    "Rango":        st.column_config.TextColumn("Rango",          disabled=True, width="medium"),
+                    "Valor medido": st.column_config.NumberColumn("Valor medido", format="%.4f", width="medium"),
+                },
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                key=f"pan_ed_{grp_opts_p[grp_sel_p]}_{nivel_num}_{_save_gen}",
+            )
 
-            # Una fila por analito
-            for fp in analitos_este_nivel:
-                m   = fp["mat"]
-                nl  = fp["niveles"][nivel_num]
-                c0, c1, c2, c3 = st.columns([2.5, 2, 1.8, 1.5])
+            col_prev, col_save = st.columns(2)
 
-                c0.markdown(f"**{m.analito}**  \n`{m.unidad or '—'}`")
-                c1.markdown(
-                    f"X̄ = `{nl.media}`  \n"
-                    f"s = `{nl.de}`  \n"
-                    f"Rango: `{nl.valor_minimo}` – `{nl.valor_maximo}`"
-                )
-
-                val = c2.number_input(
-                    f"val_{m.id}_n{nivel_num}",
-                    format="%.4f", step=0.01,
-                    key=f"pval_{m.id}_nv{nivel_num}",
-                    label_visibility="collapsed",
-                )
-
-                # Preview Westgard en tiempo real
-                if val != 0.0:
-                    hist   = crud.historial_zscores(db, nl.id)
-                    otros  = crud.zscores_mismo_run(db, m.id, fecha_p, hora_p, nivel_num, fp["lote"].id)
-                    prev   = evaluar_westgard(val, nl.media, nl.de, hist, otros or None)
-                    icon   = emoji_resultado(prev.resultado)
-                    badge_color = {"OK": "#16a34a", "ADVERTENCIA": "#d97706", "RECHAZO": "#dc2626"}.get(prev.resultado, "#64748b")
-                    c3.html(
-                        f"<div style='padding:6px 10px; border-radius:8px;"
-                        f" background:rgba(0,0,0,0.15); border-left:3px solid {badge_color};"
-                        f" font-size:0.8rem; color:{badge_color}; font-weight:600;'>"
-                        f"{icon} {prev.resultado}"
-                        f"<br><span style='font-weight:400; color:inherit;'>z = {prev.zscore:.3f}</span>"
-                        f"{'<br><span style=\"font-size:0.7rem;\">' + prev.regla_violada + '</span>' if prev.regla_violada else ''}"
-                        f"</div>"
+            # ── Preview Westgard (sin guardar) ────────────────────────────────
+            if col_prev.button(f"📊 Previsualizar Westgard", key=f"btn_prev_nv{nivel_num}"):
+                filas_prev = []
+                for fp, (_, row) in zip(fps_nivel, edited_nv.iterrows()):
+                    val = float(row["Valor medido"])
+                    if val == 0.0:
+                        continue
+                    m  = fp["mat"]
+                    nl = fp["niveles"][nivel_num]
+                    hist  = crud.historial_zscores(db, nl.id)
+                    otros = crud.zscores_mismo_run(db, m.id, fecha_p, hora_p, nivel_num, fp["lote"].id)
+                    prev  = evaluar_westgard(val, nl.media, nl.de, hist, otros or None)
+                    filas_prev.append({
+                        "Analito":   m.analito,
+                        "Valor":     val,
+                        "z-score":   round(prev.zscore, 3),
+                        "Resultado": prev.resultado,
+                        "Regla":     prev.regla_violada or "—",
+                    })
+                if filas_prev:
+                    def _col_res(v):
+                        return {"OK": "background-color:#d4edda;color:#155724",
+                                "ADVERTENCIA": "background-color:#fff3cd;color:#856404",
+                                "RECHAZO": "background-color:#f8d7da;color:#721c24"}.get(v, "")
+                    st.dataframe(
+                        pd.DataFrame(filas_prev).style.applymap(_col_res, subset=["Resultado"]),
+                        use_container_width=True, hide_index=True
                     )
                 else:
-                    c3.caption("— ingrese valor —")
+                    st.info("Ingrese al menos un valor distinto de 0.")
 
-            st.divider()
-
-            # ── Botón guardar nivel ───────────────────────────────────────────
-            if st.button(f"💾 Guardar Nivel {nivel_num}", key=f"btn_pan_nv{nivel_num}", type="primary"):
-                errores_nv  = []
-                guardados_nv = []
-                for fp in analitos_este_nivel:
-                    m   = fp["mat"]
-                    nl  = fp["niveles"][nivel_num]
-                    val = st.session_state.get(f"pval_{m.id}_nv{nivel_num}", 0.0)
-
+            # ── Guardar nivel ─────────────────────────────────────────────────
+            if col_save.button(f"💾 Guardar Nivel {nivel_num}", key=f"btn_pan_nv{nivel_num}", type="primary"):
+                guardados_nv, errores_nv = [], []
+                for fp, (_, row) in zip(fps_nivel, edited_nv.iterrows()):
+                    val = float(row["Valor medido"])
                     if val == 0.0:
-                        errores_nv.append(f"**{m.analito}**: valor 0 omitido (no se guarda).")
                         continue
-
+                    m  = fp["mat"]
+                    nl = fp["niveles"][nivel_num]
                     ctrl, err = crud.registrar_control_diario(
-                        db=db,
-                        material_id=m.id,
-                        lote_id=fp["lote"].id,
-                        nivel_lote_id=nl.id,
-                        personal_id=pers_opts_p[pers_sel_p],
-                        fecha=fecha_p,
-                        hora=hora_p,
-                        valor=val,
-                        comentario=comentario_p,
-                        turno=turno_p,
-                        es_retroactivo=False,
+                        db=db, material_id=m.id, lote_id=fp["lote"].id,
+                        nivel_lote_id=nl.id, personal_id=pers_opts_p[pers_sel_p],
+                        fecha=fecha_p, hora=hora_p, valor=val,
+                        comentario=comentario_p, turno=turno_p, es_retroactivo=False,
                     )
                     if err:
                         errores_nv.append(f"**{m.analito}**: {err}")
                     else:
                         guardados_nv.append((m, nl, ctrl))
 
-                # Mostrar resultados
                 if guardados_nv:
                     rechazos_nv = [x for x in guardados_nv if x[2].resultado == RESULTADO_RECHAZO]
                     advert_nv   = [x for x in guardados_nv if x[2].resultado == RESULTADO_ADVERTENCIA]
                     ok_nv       = [x for x in guardados_nv if x[2].resultado == "OK"]
-
-                    resumen_html = (
-                        f"<div style='background:rgba(22,163,74,0.1); border:1px solid rgba(22,163,74,0.3);"
-                        f" border-radius:10px; padding:14px 18px; margin:8px 0;'>"
-                        f"<b>✅ {len(guardados_nv)} analito(s) guardados — Nivel {nivel_num}</b><br>"
-                        f"<small>✅ {len(ok_nv)} OK &nbsp;·&nbsp; "
-                        f"⚠️ {len(advert_nv)} Advertencia &nbsp;·&nbsp; "
-                        f"❌ {len(rechazos_nv)} Rechazo</small></div>"
+                    st.success(
+                        f"✅ Nivel {nivel_num} guardado — "
+                        f"{len(ok_nv)} OK · {len(advert_nv)} Adv · {len(rechazos_nv)} Rech"
                     )
-                    st.html(resumen_html)
-
-                    # Detalle de cada analito
-                    for m, nl, ctrl in guardados_nv:
-                        icn = emoji_resultado(ctrl.resultado)
-                        st.markdown(
-                            f"- {icn} **{m.analito}** → `{ctrl.valor}` {m.unidad or ''} "
-                            f"| z = `{ctrl.zscore:.3f}`"
-                            + (f" | Regla `{ctrl.regla_violada}`" if ctrl.regla_violada else "")
-                        )
-
+                    # Tabla resumen
+                    filas_res = [{
+                        "Analito":   m.analito,
+                        "Valor":     ctrl.valor,
+                        "z":         round(ctrl.zscore, 3),
+                        "Resultado": ctrl.resultado,
+                        "Regla":     ctrl.regla_violada or "—",
+                    } for m, nl, ctrl in guardados_nv]
+                    def _c(v):
+                        return {"OK":"background-color:#d4edda;color:#155724",
+                                "ADVERTENCIA":"background-color:#fff3cd;color:#856404",
+                                "RECHAZO":"background-color:#f8d7da;color:#721c24"}.get(v,"")
+                    st.dataframe(
+                        pd.DataFrame(filas_res).style.applymap(_c, subset=["Resultado"]),
+                        use_container_width=True, hide_index=True,
+                    )
                     if rechazos_nv:
-                        st.error(
-                            f"🛑 **{len(rechazos_nv)} RECHAZO(S)** en Nivel {nivel_num}. "
-                            "No libere resultados de pacientes hasta registrar la acción correctiva."
-                        )
-                        # Enviar alertas email
+                        st.error("🛑 RECHAZO detectado. No libere muestras hasta registrar acción correctiva.")
+                        pers_obj = next(p for p in personal if p.id == pers_opts_p[pers_sel_p])
                         for m, nl, ctrl in rechazos_nv:
-                            pers_obj = next(p for p in personal if p.id == pers_opts_p[pers_sel_p])
                             alerta_rechazo(
                                 analito=m.analito, area=m.equipo.area.nombre,
                                 equipo=m.equipo.nombre, nivel=nivel_num,
@@ -420,11 +412,11 @@ def _tab_panel(db):
                                 personal=f"{pers_obj.apellido}, {pers_obj.nombre}",
                                 fecha=fecha_p, hora=hora_p,
                             )
-                        st.markdown("👉 Registre las acciones correctivas en **🔧 Acciones Correctivas**.")
-
-                if errores_nv:
-                    for e in errores_nv:
-                        st.warning(e)
+                    # Resetear editor incrementando generación
+                    st.session_state["_pan_save_gen"] = _save_gen + 1
+                    st.rerun()
+                for e in errores_nv:
+                    st.warning(e)
 
 
 # ─── CONSULTA / HISTORIAL ─────────────────────────────────────────────────────
