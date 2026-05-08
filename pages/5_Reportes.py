@@ -33,6 +33,12 @@ from database import crud
 from database.models import TURNOS
 from modules.westgard import RESULTADO_OK, RESULTADO_ADVERTENCIA, RESULTADO_RECHAZO
 from modules.page_utils import setup_page, page_header
+from modules.cache import (
+    cached_personal   as _cached_personal,
+    cached_areas      as _cached_areas,
+    cached_equipos    as _cached_equipos,
+    cached_materiales as _cached_materiales,
+)
 
 st.set_page_config(page_title="Reportes", page_icon="📊", layout="wide")
 init_db()
@@ -65,58 +71,6 @@ def _get_lab() -> str:
         return st.secrets.get("laboratorio_nombre", "Laboratorio Clínico")
     except Exception:
         return "Laboratorio Clínico"
-
-
-# ── Caché de datos de referencia (objetos planos, TTL 5 min) ─────────────────
-# Estas funciones crean su propia sesión DB y devuelven dicts serializables.
-# El caché evita consultas repetidas en cada rerun de Streamlit.
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_personal() -> list[dict]:
-    db = get_session()
-    try:
-        return [
-            {"id": p.id, "nombre": p.nombre, "apellido": p.apellido,
-             "cargo": p.cargo or "", "codigo": p.codigo or ""}
-            for p in crud.listar_personal(db)
-        ]
-    finally:
-        db.close()
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_materiales() -> list[dict]:
-    db = get_session()
-    try:
-        return [
-            {"id": m.id, "analito": m.analito, "unidad": m.unidad or "",
-             "equipo_id": m.equipo_id, "equipo_nombre": m.equipo.nombre,
-             "area_id": m.equipo.area_id, "area_nombre": m.equipo.area.nombre}
-            for m in crud.listar_materiales(db)
-        ]
-    finally:
-        db.close()
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_areas() -> list[dict]:
-    db = get_session()
-    try:
-        return [{"id": a.id, "nombre": a.nombre} for a in crud.listar_areas(db)]
-    finally:
-        db.close()
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_equipos(area_id: int | None = None) -> list[dict]:
-    db = get_session()
-    try:
-        return [
-            {"id": e.id, "nombre": e.nombre, "area_id": e.area_id}
-            for e in crud.listar_equipos(db, area_id=area_id)
-        ]
-    finally:
-        db.close()
 
 
 # ── Widget de firma digital — fragment aislado ────────────────────────────────

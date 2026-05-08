@@ -577,5 +577,87 @@ hr {
 """
 
 
+LIGHT_CSS = """
+<style>
+/* ════════════════════════════════════════════════════════════════════════════
+   TEMA CLARO — sobreescribe las variables de :root definidas en MAIN_CSS.
+   El sidebar se mantiene siempre oscuro (vars --navy no se modifican aquí).
+════════════════════════════════════════════════════════════════════════════ */
+:root {
+    --bg:          #f8fafc !important;
+    --surface:     #ffffff !important;
+    --surface-2:   #f1f5f9 !important;
+    --txt:         #0f172a !important;
+    --txt-secondary: rgba(15,23,42,0.72) !important;
+    --txt-muted:     rgba(15,23,42,0.48) !important;
+    --brand:       #0284c7 !important;
+    --brand-dim:   #0369a1 !important;
+    --brand-faint: rgba(2,132,199,0.10) !important;
+    --border:      rgba(15,23,42,0.12) !important;
+    --border-soft: rgba(15,23,42,0.06) !important;
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(15,23,42,0.08) !important;
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 0 0 1px rgba(15,23,42,0.08) !important;
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.10) !important;
+}
+
+/* ── Fondos principales ── */
+.stApp,
+.stApp > div,
+[data-testid="stAppViewBlockContainer"],
+.main { background: #f8fafc !important; color: #0f172a !important; }
+.main .block-container { background: #f8fafc !important; }
+
+/* ── Encabezados y texto ── */
+h1, h2, h3 { color: #0f172a !important; }
+p           { color: rgba(15,23,42,0.72) !important; }
+label       { color: rgba(15,23,42,0.65) !important; }
+
+/* ── Métricas ── */
+[data-testid="stMetricValue"] { color: #0f172a !important; }
+[data-testid="stMetricLabel"] { color: rgba(15,23,42,0.55) !important; }
+[data-testid="metric-container"] { background: #ffffff !important; }
+
+/* ── Inputs ── */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input,
+.stTextArea textarea {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: rgba(15,23,42,0.18) !important;
+}
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus,
+.stTextArea textarea:focus {
+    background: #ffffff !important;
+    border-color: #0284c7 !important;
+}
+.stSelectbox > div > div {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: rgba(15,23,42,0.18) !important;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] { background: #ffffff !important; }
+.stTabs [data-baseweb="tab"]      { color: rgba(15,23,42,0.65) !important; }
+
+/* ── DataFrames y formularios ── */
+[data-testid="stDataFrame"] { background: #ffffff !important; }
+[data-testid="stForm"]      { background: #ffffff !important; }
+
+/* ── Expanders ── */
+.streamlit-expanderHeader  { background: #ffffff !important; color: rgba(15,23,42,0.72) !important; }
+.streamlit-expanderContent { background: #f1f5f9 !important; }
+
+/* ── Westgard boxes (más suaves en claro) ── */
+.wg-ok   { background: rgba(22,163,74,0.08)  !important; }
+.wg-warn { background: rgba(217,119,6,0.08)  !important; }
+.wg-rej  { background: rgba(220,38,38,0.08)  !important; }
+</style>
+"""
+
+
 def inject_css():
     st.html(MAIN_CSS)
+    if st.session_state.get("tema_app", "🌙 Oscuro") == "☀️ Claro":
+        st.html(LIGHT_CSS)

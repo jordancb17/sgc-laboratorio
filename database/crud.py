@@ -596,10 +596,13 @@ def get_lotes_activos_bulk(db: Session, material_ids: list) -> dict:
 
 
 def get_lote_activo(db: Session, material_id: int) -> Optional[Lote]:
-    """Devuelve el lote activo no vencido más reciente para un material."""
+    """Devuelve el lote activo no vencido más reciente para un material.
+    Carga niveles en el mismo query (selectinload) para evitar N+1 al iterar lote.niveles.
+    """
     hoy = date.today()
     stmt = (
         select(Lote)
+        .options(selectinload(Lote.niveles))   # precarga niveles — elimina lazy load N+1
         .where(
             Lote.material_id == material_id,
             Lote.activo == True,

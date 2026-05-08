@@ -14,6 +14,7 @@ from database.database import init_db, get_session
 from database import crud
 from database.models import PANELES_PREDEFINIDOS
 from modules.page_utils import setup_page, page_header
+from modules.cache import invalidate_all
 
 st.set_page_config(page_title="Configuración", page_icon="⚙️", layout="wide")
 init_db()
@@ -68,6 +69,7 @@ def _tab_areas():
                         try:
                             crud.crear_area(db, nombre, desc)
                             st.success(f"✅ Área **{nombre}** registrada correctamente.")
+                            invalidate_all()
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
@@ -111,6 +113,7 @@ def _tab_areas():
                     try:
                         crud.actualizar_area(db, area_id_sel, nuevo_nombre, nueva_desc)
                         st.success("✅ Área actualizada correctamente.")
+                        invalidate_all()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -119,6 +122,7 @@ def _tab_areas():
                 nuevo_estado = crud.toggle_activo_area(db, area_id_sel)
                 label = "activada ✅" if nuevo_estado else "desactivada ⛔"
                 st.info(f"Área **{area_obj.nombre}** {label}.")
+                invalidate_all()
                 st.rerun()
 
             if del_btn:
@@ -177,6 +181,7 @@ def _tab_equipos():
                         try:
                             crud.crear_equipo(db, area_opts[area_sel], nombre, marca, modelo, serie)
                             st.success(f"✅ Equipo **{nombre}** registrado correctamente.")
+                            invalidate_all()
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
@@ -246,6 +251,7 @@ def _tab_equipos():
                             nuevo_nombre, nueva_marca, nuevo_modelo, nueva_serie
                         )
                         st.success("✅ Equipo actualizado correctamente.")
+                        invalidate_all()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -301,6 +307,7 @@ def _tab_personal():
                         try:
                             crud.crear_personal(db, nombre, apellido, codigo, cargo)
                             st.success(f"✅ **{apellido}, {nombre}** registrado correctamente.")
+                            invalidate_all()
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
@@ -354,6 +361,7 @@ def _tab_personal():
                             db, pers_id_sel, nuevo_nombre, nuevo_apellido, nuevo_codigo, nuevo_cargo
                         )
                         st.success("✅ Personal actualizado correctamente.")
+                        invalidate_all()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")
@@ -632,6 +640,7 @@ def _tab_analitos():
                                 grupo_id=grp_opts_new[grp_sel_new]
                             )
                             st.success(f"✅ Analito **{analito}** registrado correctamente.")
+                            invalidate_all()
                             st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
@@ -716,6 +725,7 @@ def _tab_analitos():
                             grupo_id=grp_opts_edit[grp_sel_edit]
                         )
                         st.success("✅ Analito actualizado correctamente.")
+                        invalidate_all()
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error: {e}")

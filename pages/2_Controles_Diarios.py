@@ -17,6 +17,7 @@ from database.models import NivelLote, TURNOS
 from modules.westgard import evaluar_westgard, emoji_resultado, color_resultado, RESULTADO_RECHAZO, RESULTADO_ADVERTENCIA
 from modules.email_alerts import alerta_rechazo
 from modules.page_utils import setup_page, page_header
+from modules.cache import cached_areas, cached_equipos, cached_materiales, cached_personal
 
 st.set_page_config(page_title="Controles Diarios", page_icon="📋", layout="wide")
 init_db()
@@ -47,6 +48,12 @@ def main():
 
 @st.fragment
 def _tab_registrar(es_retroactivo: bool):
+    # ── Datos de referencia desde caché (sin consulta DB) ────────────────────
+    areas_c = cached_areas()
+    if not areas_c:
+        st.warning("No hay áreas configuradas. Vaya a ⚙️ Configuración.")
+        return
+
     db = get_session()
     try:
         if es_retroactivo:
@@ -58,33 +65,28 @@ def _tab_registrar(es_retroactivo: bool):
 
         suf = "_r" if es_retroactivo else ""
 
-        areas = crud.listar_areas(db)
-        if not areas:
-            st.warning("No hay áreas configuradas. Vaya a ⚙️ Configuración.")
-            return
-
+        # ── Área / Equipo / Analito (caché — sin DB) ─────────────────────────
         col1, col2, col3 = st.columns(3)
-        area_opts = {a.nombre: a.id for a in areas}
-        area_sel = col1.selectbox("Área *", list(area_opts.keys()), key=f"area{suf}")
+        area_opts = {a["nombre"]: a["id"] for a in areas_c}
+        area_sel  = col1.selectbox("Área *", list(area_opts.keys()), key=f"area{suf}")
 
-        equipos = crud.listar_equipos(db, area_id=area_opts[area_sel])
-        if not equipos:
+        equipos_c = cached_equipos(area_id=area_opts[area_sel])
+        if not equipos_c:
             col2.warning("Sin equipos en esta área.")
             return
-        eq_opts = {e.nombre: e.id for e in equipos}
-        eq_sel = col2.selectbox("Equipo *", list(eq_opts.keys()), key=f"eq{suf}")
+        eq_opts = {e["nombre"]: e["id"] for e in equipos_c}
+        eq_sel  = col2.selectbox("Equipo *", list(eq_opts.keys()), key=f"eq{suf}")
 
-        materiales = crud.listar_materiales(db, equipo_id=eq_opts[eq_sel])
-        if not materiales:
+        mats_c = cached_materiales(equipo_id=eq_opts[eq_sel])
+        if not mats_c:
             col3.warning("Sin analitos en este equipo.")
             return
-        mat_opts = {f"{m.analito} [{m.proveedor}]": m.id for m in materiales}
-        mat_sel = col3.selectbox("Analito *", list(mat_opts.keys()), key=f"mat{suf}")
-
+        mat_opts    = {f"{m['analito']} [{m['proveedor']}]": m["id"] for m in mats_c}
+        mat_sel     = col3.selectbox("Analito *", list(mat_opts.keys()), key=f"mat{suf}")
         material_id = mat_opts[mat_sel]
-        material = next(m for m in materiales if m.id == material_id)
+        mat_d       = next(m for m in mats_c if m["id"] == material_id)   # dict
 
-        # ── Lote activo ──────────────────────────────────────────────────────
+        # ── Lote activo (DB — query única con selectinload) ───────────────────
         lote = crud.get_lote_activo(db, material_id)
         if not lote:
             st.error("Este analito no tiene lote activo vigente. Registre un lote en ⚙️ Configuración.")
@@ -101,12 +103,12 @@ def _tab_registrar(es_retroactivo: bool):
             return
 
         col1, col2 = st.columns(2)
-        nivel_sel = col1.selectbox("Nivel de control *", list(niveles_disponibles.keys()), key=f"nivel{suf}")
+        nivel_sel     = col1.selectbox("Nivel de control *", list(niveles_disponibles.keys()), key=f"nivel{suf}")
         nivel_lote_id = niveles_disponibles[nivel_sel]
         nivel_lote: NivelLote = next(nv for nv in lote.niveles if nv.id == nivel_lote_id)
         col2.markdown(
             f"**Referencia** — X̄: `{nivel_lote.media}` | s: `{nivel_lote.de}` | "
-            f"Rango: `{nivel_lote.valor_minimo}` – `{nivel_lote.valor_maximo}` {material.unidad or ''}"
+            f"Rango: `{nivel_lote.valor_minimo}` – `{nivel_lote.valor_maximo}` {mat_d['unidad']}"
         )
 
         # ── Fecha / hora / turno / personal ─────────────────────────────────
@@ -122,29 +124,30 @@ def _tab_registrar(es_retroactivo: bool):
                                     key=f"hora{suf}")
         turno_sel = col3.selectbox("Turno *", TURNOS, key=f"turno{suf}")
 
-        personal = crud.listar_personal(db)
-        if not personal:
+        # Personal desde caché
+        personal_c = cached_personal()
+        if not personal_c:
             st.warning("No hay personal configurado.")
             return
-        pers_opts = {f"{p.apellido}, {p.nombre}": p.id for p in personal}
-        pers_sel = col4.selectbox("Personal *", list(pers_opts.keys()), key=f"pers{suf}")
+        pers_opts = {f"{p['apellido']}, {p['nombre']}": p["id"] for p in personal_c}
+        pers_sel  = col4.selectbox("Personal *", list(pers_opts.keys()), key=f"pers{suf}")
 
         # ── Valor medido ─────────────────────────────────────────────────────
         col1, col2 = st.columns([1, 2])
-        valor = col1.number_input(
-            f"Valor medido ({material.unidad or 'u'}) *",
+        valor      = col1.number_input(
+            f"Valor medido ({mat_d['unidad'] or 'u'}) *",
             format="%.4f", step=0.01, key=f"valor{suf}"
         )
         comentario = col2.text_area("Comentario (opcional)", height=68, key=f"coment{suf}")
 
         # ── Preview Westgard en tiempo real ──────────────────────────────────
         if valor != 0.0:
-            hist = crud.historial_zscores(db, nivel_lote_id)
-            otros = crud.zscores_mismo_run(db, material_id, fecha_ctrl, hora_ctrl, nivel_lote.nivel, lote.id)
+            hist    = crud.historial_zscores(db, nivel_lote_id)
+            otros   = crud.zscores_mismo_run(db, material_id, fecha_ctrl, hora_ctrl, nivel_lote.nivel, lote.id)
             preview = evaluar_westgard(valor, nivel_lote.media, nivel_lote.de, hist, otros or None)
-            wg_class = {"OK": "wg-ok", "ADVERTENCIA": "wg-warn", "RECHAZO": "wg-rej"}.get(preview.resultado, "wg-ok")
+            wg_cls  = {"OK": "wg-ok", "ADVERTENCIA": "wg-warn", "RECHAZO": "wg-rej"}.get(preview.resultado, "wg-ok")
             st.markdown(
-                f'<div class="wg-box {wg_class}">'
+                f'<div class="wg-box {wg_cls}">'
                 f'<b>{emoji_resultado(preview.resultado)} Westgard (preview):</b> {preview.resultado}'
                 + (f' — Regla <code>{preview.regla_violada}</code>' if preview.regla_violada else '')
                 + f'<br><small>z-score: <b>{preview.zscore:.3f}</b> &nbsp;·&nbsp; {preview.descripcion}</small>'
@@ -182,17 +185,17 @@ def _tab_registrar(es_retroactivo: bool):
                     )
                     if control.resultado == RESULTADO_RECHAZO:
                         st.error("🛑 **RECHAZO**: No libere resultados de pacientes hasta registrar la acción correctiva.")
-                        pers_obj = next(p for p in personal if p.id == pers_opts[pers_sel])
+                        pers_d = next(p for p in personal_c if p["id"] == pers_opts[pers_sel])
                         ok_mail, msg_mail = alerta_rechazo(
-                            analito=material.analito,
-                            area=area_sel,          # from selectbox — avoids lazy load
-                            equipo=eq_sel,          # from selectbox — avoids lazy load
+                            analito=mat_d["analito"],
+                            area=area_sel,
+                            equipo=eq_sel,
                             nivel=nivel_lote.nivel,
                             valor=valor,
-                            unidad=material.unidad or "",
+                            unidad=mat_d["unidad"],
                             zscore=control.zscore,
                             regla=control.regla_violada or "—",
-                            personal=f"{pers_obj.apellido}, {pers_obj.nombre}",
+                            personal=f"{pers_d['apellido']}, {pers_d['nombre']}",
                             fecha=fecha_ctrl,
                             hora=hora_ctrl,
                         )
@@ -217,21 +220,22 @@ def _tab_panel():
             "Ideal para Hemograma, Gases Arteriales, Electrolitos y otros paneles multi-analito."
         )
 
-        areas = crud.listar_areas(db)
-        if not areas:
+        # Áreas y equipos desde caché — sin DB
+        areas_c_p = cached_areas()
+        if not areas_c_p:
             st.warning("No hay áreas configuradas.")
             return
 
         col1, col2, col3 = st.columns(3)
-        area_opts = {a.nombre: a.id for a in areas}
+        area_opts  = {a["nombre"]: a["id"] for a in areas_c_p}
         area_sel_p = col1.selectbox("Área *", list(area_opts.keys()), key="pan_area")
 
-        equipos_p = crud.listar_equipos(db, area_id=area_opts[area_sel_p])
-        if not equipos_p:
+        equipos_cp = cached_equipos(area_id=area_opts[area_sel_p])
+        if not equipos_cp:
             col2.warning("Sin equipos en esta área.")
             return
-        eq_opts_p = {e.nombre: e.id for e in equipos_p}
-        eq_sel_p = col2.selectbox("Equipo *", list(eq_opts_p.keys()), key="pan_eq")
+        eq_opts_p = {e["nombre"]: e["id"] for e in equipos_cp}
+        eq_sel_p  = col2.selectbox("Equipo *", list(eq_opts_p.keys()), key="pan_eq")
 
         grupos_p = crud.listar_grupos(db, equipo_id=eq_opts_p[eq_sel_p])
         if not grupos_p:
@@ -253,11 +257,12 @@ def _tab_panel():
         fecha_p  = col1.date_input("Fecha *", value=date.today(), max_value=date.today(), key="pan_fecha")
         hora_p   = col2.time_input("Hora *", value=datetime.now().time().replace(second=0, microsecond=0), key="pan_hora")
         turno_p  = col3.selectbox("Turno *", TURNOS, key="pan_turno")
-        personal = crud.listar_personal(db)
-        if not personal:
+        # Personal desde caché
+        personal_cp = cached_personal()
+        if not personal_cp:
             st.warning("No hay personal configurado.")
             return
-        pers_opts_p = {f"{p.apellido}, {p.nombre}": p.id for p in personal}
+        pers_opts_p = {f"{p['apellido']}, {p['nombre']}": p["id"] for p in personal_cp}
         pers_sel_p  = col4.selectbox("Personal *", list(pers_opts_p.keys()), key="pan_pers")
         comentario_p = st.text_input("Comentario general (opcional)", key="pan_coment")
 
@@ -400,16 +405,16 @@ def _tab_panel():
                         )
                         if rechazos_nv:
                             st.error("🛑 RECHAZO detectado. No libere muestras hasta registrar acción correctiva.")
-                            pers_obj = next(p for p in personal if p.id == pers_opts_p[pers_sel_p])
+                            pers_dp = next(p for p in personal_cp if p["id"] == pers_opts_p[pers_sel_p])
                             for m, nl, ctrl in rechazos_nv:
                                 alerta_rechazo(
                                     analito=m.analito,
-                                    area=area_sel_p,    # selectbox value — no lazy load
-                                    equipo=eq_sel_p,    # selectbox value — no lazy load
+                                    area=area_sel_p,
+                                    equipo=eq_sel_p,
                                     nivel=nivel_num,
                                     valor=ctrl.valor, unidad=m.unidad or "",
                                     zscore=ctrl.zscore, regla=ctrl.regla_violada or "—",
-                                    personal=f"{pers_obj.apellido}, {pers_obj.nombre}",
+                                    personal=f"{pers_dp['apellido']}, {pers_dp['nombre']}",
                                     fecha=fecha_p, hora=hora_p,
                                 )
                         st.session_state["_pan_save_gen"] = _save_gen + 1
@@ -429,31 +434,33 @@ def _tab_consulta():
         st.subheader("Historial de Controles")
 
         col1, col2, col3, col4 = st.columns(4)
-        areas = crud.listar_areas(db)
-        area_opts = {"Todas": None} | {a.nombre: a.id for a in areas}
-        area_f = col1.selectbox("Área", list(area_opts.keys()), key="cf_area")
-        equipos_f = crud.listar_equipos(db, area_id=area_opts[area_f])
-        eq_opts_f = {"Todos": None} | {e.nombre: e.id for e in equipos_f}
-        eq_f = col2.selectbox("Equipo", list(eq_opts_f.keys()), key="cf_eq")
-        mats_f = crud.listar_materiales(db, equipo_id=eq_opts_f[eq_f])
-        mat_opts_f = {"Todos": None} | {m.analito: m.id for m in mats_f}
-        mat_f = col3.selectbox("Analito", list(mat_opts_f.keys()), key="cf_mat")
-        nivel_f = col4.selectbox("Nivel", ["Todos", 1, 2, 3], key="cf_nivel")
+        # Dropdowns de filtro desde caché — sin consultas DB
+        areas_cf   = cached_areas()
+        area_opts  = {"Todas": None} | {a["nombre"]: a["id"] for a in areas_cf}
+        area_f     = col1.selectbox("Área", list(area_opts.keys()), key="cf_area")
+
+        equipos_cf = cached_equipos(area_id=area_opts[area_f])
+        eq_opts_f  = {"Todos": None} | {e["nombre"]: e["id"] for e in equipos_cf}
+        eq_f       = col2.selectbox("Equipo", list(eq_opts_f.keys()), key="cf_eq")
+
+        mats_cf    = cached_materiales(equipo_id=eq_opts_f[eq_f])
+        mat_opts_f = {"Todos": None} | {m["analito"]: m["id"] for m in mats_cf}
+        mat_f      = col3.selectbox("Analito", list(mat_opts_f.keys()), key="cf_mat")
+        nivel_f    = col4.selectbox("Nivel", ["Todos", 1, 2, 3], key="cf_nivel")
 
         col1, col2 = st.columns(2)
         fecha_desde = col1.date_input("Desde", value=date.today() - timedelta(days=30), key="cf_desde")
         fecha_hasta = col2.date_input("Hasta", value=date.today(), key="cf_hasta")
 
+        # Filtro por equipo resuelto en SQL (equipo_id) — no más post-filtrado Python
         controles = crud.listar_controles_diarios(
             db,
             material_id=mat_opts_f[mat_f],
+            equipo_id=eq_opts_f[eq_f],          # ★ filtro SQL, reemplaza el if/list-comp
             fecha_desde=fecha_desde,
             fecha_hasta=fecha_hasta,
             nivel=None if nivel_f == "Todos" else int(nivel_f),
         )
-        if mat_opts_f[mat_f] is None and eq_opts_f[eq_f] is not None:
-            ids_mat = {m.id for m in mats_f}
-            controles = [c for c in controles if c.material_id in ids_mat]
 
         if not controles:
             st.info("No hay controles con estos filtros.")
