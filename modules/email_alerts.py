@@ -115,6 +115,47 @@ def alerta_lote_por_vencer(analito: str, area: str, lote: str,
     return _enviar(asunto, cuerpo)
 
 
+def enviar_reporte_pdf(
+    asunto: str,
+    cuerpo_html: str,
+    pdf_bytes: bytes,
+    filename: str = "reporte_qc.pdf",
+) -> tuple[bool, str]:
+    """Envía un reporte por email con el PDF como adjunto."""
+    cfg = _cfg()
+    if not cfg:
+        return False, "Email no habilitado en secrets.toml."
+    destinatarios = [d.strip() for d in cfg.get("destinatarios", "").split(",") if d.strip()]
+    if not destinatarios:
+        return False, "No hay destinatarios configurados."
+    try:
+        from email.mime.application import MIMEApplication
+
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = asunto
+        msg["From"]    = cfg["remitente"]
+        msg["To"]      = ", ".join(destinatarios)
+
+        alt = MIMEMultipart("alternative")
+        alt.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+        msg.attach(alt)
+
+        pdf_part = MIMEApplication(pdf_bytes, Name=filename)
+        pdf_part["Content-Disposition"] = f'attachment; filename="{filename}"'
+        msg.attach(pdf_part)
+
+        with smtplib.SMTP_SSL(
+            cfg.get("smtp_host", "smtp.gmail.com"),
+            int(cfg.get("smtp_port", 465)),
+        ) as srv:
+            srv.login(cfg["remitente"], cfg["password"])
+            srv.sendmail(cfg["remitente"], destinatarios, msg.as_string())
+
+        return True, f"Reporte enviado a: {', '.join(destinatarios)}"
+    except Exception as e:
+        return False, f"Error al enviar: {e}"
+
+
 def probar_conexion() -> tuple[bool, str]:
     """Envía un email de prueba para verificar la configuración."""
     asunto = "✅ Prueba de conexión — SGC Laboratorio Clínico"
