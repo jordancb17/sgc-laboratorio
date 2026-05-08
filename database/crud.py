@@ -760,8 +760,11 @@ def listar_controles_diarios(
     fecha_hasta: Optional[date] = None,
     nivel: Optional[int] = None,
     personal_id: Optional[int] = None,
+    equipo_id: Optional[int] = None,
+    area_id: Optional[int] = None,
 ) -> list[ControlDiario]:
     stmt = select(ControlDiario).options(
+        joinedload(ControlDiario.lote),                          # evita N+1 en informe corrida
         joinedload(ControlDiario.material)
             .joinedload(MaterialControl.equipo)
             .joinedload(Equipo.area),
@@ -779,6 +782,21 @@ def listar_controles_diarios(
         stmt = stmt.join(NivelLote, ControlDiario.nivel_lote_id == NivelLote.id).where(NivelLote.nivel == nivel)
     if personal_id:
         stmt = stmt.where(ControlDiario.personal_id == personal_id)
+    # Filtros por equipo / área — se resuelven con subconsultas para no chocar con joinedload
+    if equipo_id:
+        stmt = stmt.where(
+            ControlDiario.material_id.in_(
+                select(MaterialControl.id).where(MaterialControl.equipo_id == equipo_id)
+            )
+        )
+    if area_id:
+        stmt = stmt.where(
+            ControlDiario.material_id.in_(
+                select(MaterialControl.id)
+                .join(Equipo, MaterialControl.equipo_id == Equipo.id)
+                .where(Equipo.area_id == area_id)
+            )
+        )
     return list(
         db.scalars(stmt.order_by(ControlDiario.fecha.asc(), ControlDiario.hora.asc())).unique()
     )

@@ -40,7 +40,21 @@ def _build_engine():
             pool_timeout=20,
             pool_recycle=1800,
         ), True
-    return create_engine(url, connect_args={"check_same_thread": False}), False
+    eng = create_engine(url, connect_args={"check_same_thread": False})
+    # Activar WAL y tunear caché para SQLite — mejora concurrencia y velocidad de lectura
+    from sqlalchemy import event as _ev
+
+    @_ev.listens_for(eng, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")       # escrituras no bloquean lecturas
+        cur.execute("PRAGMA synchronous=NORMAL")     # más rápido; seguro con WAL
+        cur.execute("PRAGMA cache_size=-32000")      # 32 MB de caché de páginas
+        cur.execute("PRAGMA temp_store=MEMORY")      # tablas temporales en RAM
+        cur.execute("PRAGMA mmap_size=134217728")    # 128 MB memory-mapped I/O
+        cur.close()
+
+    return eng, False
 
 
 # ── Motor cacheado — se crea UNA sola vez por proceso ────────────────────────
